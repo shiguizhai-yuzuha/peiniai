@@ -1,0 +1,223 @@
+/* ==========================================================
+   40_ring.css —— 状态卡（白卡 + 蓝色海浪环 + 浮动进度条）
+   ========================================================== */
+
+/* ---------- 卡片 ---------- */
+.ringcard{
+  --card-ink:      #1d2b3a;
+  --card-ink-dim:  rgba(29,43,58,.62);
+  --card-ink-soft: rgba(29,43,58,.40);
+  --card-track:    rgba(38,86,140,.13);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+
+  width: min(280px, 100%);
+  margin: 2px auto 10px;
+  padding: 18px 20px 14px;
+
+  border-radius: var(--r-l);
+  background: linear-gradient(180deg,
+              rgba(250,253,255,.96) 0%,
+              rgba(240,247,255,.96) 100%);
+  box-shadow:
+      0 20px 48px rgba(0,20,46,.44),
+      0 2px 6px rgba(0,20,46,.18),
+      inset 0 0 0 1px rgba(255,255,255,.85);
+  color: var(--card-ink);
+  animation: cardIn .8s var(--e-out) both;
+}
+
+@keyframes cardIn{
+  from{ opacity: 0; transform: translateY(10px) scale(.98); }
+  to  { opacity: 1; transform: none; }
+}
+
+/* ---------- 环 ---------- */
+.ringstage{
+  position: relative;
+  width: var(--ring-size);
+  height: var(--ring-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ringstage svg{
+  width: 100%; height: 100%;
+  display: block; overflow: visible;
+}
+
+/* 海浪：两条细波浪环，反向缓慢旋转 */
+.wave{ transform-origin: 66px 66px; }
+.wave path{
+  fill: none;
+  stroke: rgba(90,170,255,.42);
+  stroke-width: .7;
+  stroke-linejoin: round;
+}
+.wave.w1{ animation: waveSpin 26s linear infinite; }
+.wave.w2{ animation: waveSpin 39s linear infinite reverse; }
+.wave.w2 path{ stroke: rgba(127,208,255,.30); }
+
+@keyframes waveSpin{
+  from{ transform: rotate(0deg); }
+  to  { transform: rotate(360deg); }
+}
+
+/* 轨迹与填充 */
+.ring-track{
+  fill: none;
+  stroke: var(--card-track);
+  stroke-width: var(--ring-w);
+  stroke-linecap: round;
+}
+
+.ring-fill{
+  fill: none;
+  stroke: url(#ringGrad);
+  stroke-width: var(--ring-w);
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(80,160,255,.45));
+  transition: stroke-dashoffset 1.15s var(--e-out),
+              stroke .3s var(--e-out);
+}
+
+.ringseg{ cursor: default; }
+.ringstage:hover .ringseg{ opacity: .32; }
+.ringstage .ringseg:hover{ opacity: 1; }
+.ringseg:hover .ring-fill{ stroke: #9fdcff; }
+
+/* 浪头：末端的小水珠，轻轻起伏 */
+.drop{
+  fill: #bfe8ff;
+  filter: drop-shadow(0 0 5px rgba(120,200,255,.85));
+  animation: dropBob 3.1s ease-in-out infinite;
+  animation-delay: var(--dl, 0s);
+}
+@keyframes dropBob{
+  0%,100%{ transform: translateY(0) scale(1);   opacity: .95; }
+  50%    { transform: translateY(-1.6px) scale(1.28); opacity: 1; }
+}
+
+/* 中心 */
+.ringcore{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.ringcore .cn{
+  font-size: 15px;
+  letter-spacing: .16em;
+  text-indent: .16em;
+  color: var(--card-ink);
+  font-weight: 500;
+}
+.ringcore .cs{
+  font-size: 9.5px;
+  letter-spacing: .28em;
+  text-indent: .28em;
+  color: var(--card-ink-soft);
+}
+
+/* ---------- 浮动进度条 ---------- */
+.ringbars{
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 2px;
+  animation: barsFloat 6.5s ease-in-out infinite;
+}
+
+@keyframes barsFloat{
+  0%,100%{ transform: translateY(0); }
+  50%    { transform: translateY(-2.5px); }
+}
+
+.ringbar{
+  display: grid;
+  grid-template-columns: 34px 1fr 30px;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: var(--card-ink-dim);
+}
+
+.ringbar .bt{
+  height: 3px;
+  border-radius: var(--r-full);
+  background: var(--card-track);
+  overflow: hidden;
+}
+
+.ringbar .bf{
+  display: block;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: linear-gradient(90deg,#3f9bff 0%, #9fdcff 45%, #3f9bff 100%);
+  background-size: 220% 100%;
+  animation: shimmer 3.4s linear infinite;
+  transition: width 1.15s var(--e-out);
+}
+
+@keyframes shimmer{
+  from{ background-position: 0% 0; }
+  to  { background-position: 220% 0; }
+}
+
+.ringbar .bv{
+  text-align: right;
+  color: var(--card-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 去海边 */
+.ringgo{
+  display:block; width:100%;
+  margin-top:4px; padding:.62em 0;
+  border-radius:var(--r-m);
+  text-align:center; text-decoration:none;
+  font-size:11.5px; letter-spacing:.28em; text-indent:.28em;
+  color:#2a6fd0;
+  background:rgba(63,155,255,.10);
+  border:1px solid rgba(63,155,255,.22);
+  transition:transform .14s var(--e-out), background .26s var(--e-out),
+             border-color .26s var(--e-out), box-shadow .26s var(--e-out);
+}
+.ringgo:hover{
+  background:rgba(63,155,255,.18);
+  border-color:rgba(63,155,255,.45);
+  box-shadow:0 4px 16px rgba(63,155,255,.22);
+}
+.ringgo:active{ transform:scale(.97); box-shadow:none; }
+
+/* 脚注 */
+.ringfoot{
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(38,86,140,.10);
+  font-size: 9.5px;
+  letter-spacing: .16em;
+  color: var(--card-ink-soft);
+}
+
+@media (max-width: 480px){
+  .ringcard{ width: 100%; padding: 15px 16px 12px; }
+  .ringcore .cn{ font-size: 13.5px; }
+  .ringbar{ grid-template-columns: 30px 1fr 26px; font-size: 9.5px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .ringcard, .ringbars, .ringbar .bf, .drop, .wave{ animation: none; }
+}

@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0307">
+<title>粒子玫瑰</title>
+<meta name="description" content="一束会呼吸的 3D 粒子玫瑰。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#fff0e3;
+    --cream-dim:rgba(255,238,224,.52);
+    --rose:#ff9eb2;
+    --gold:#ffd9aa;
+    --line:rgba(255,221,203,.2);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#080305}
+  body{
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--cream);
+    -webkit-font-smoothing:antialiased;
+    user-select:none;
+    overscroll-behavior:none;
+    background:
+      radial-gradient(ellipse 90% 70% at 50% 37%,rgba(103,20,43,.92) 0%,rgba(50,9,24,.88) 28%,rgba(18,4,11,.96) 64%,#070204 100%),
+      #080305;
+  }
+  body:before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(ellipse 40% 42% at 71% 24%,rgba(255,146,158,.09),transparent 68%),
+      radial-gradient(ellipse 35% 40% at 26% 66%,rgba(255,202,140,.055),transparent 70%),
+      radial-gradient(ellipse 60% 36% at 50% 100%,rgba(74,8,26,.38),transparent 75%);
+  }
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1;touch-action:none;cursor:grab;outline:none}
+  #scene.dragging{cursor:grabbing}
+  .vignette{
+    position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:
+      radial-gradient(ellipse 75% 68% at 50% 45%,transparent 42%,rgba(3,0,2,.24) 77%,rgba(3,0,2,.64) 100%),
+      linear-gradient(180deg,rgba(5,0,3,.34),transparent 18%,transparent 78%,rgba(5,0,3,.44));
+  }
+  .grain{
+    position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.16;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+    mix-blend-mode:soft-light;
+  }
+  #ui{
+    position:fixed;z-index:6;left:clamp(20px,4.2vw,70px);top:calc(clamp(20px,4.8vh,52px) + var(--safe-top));
+    pointer-events:none;opacity:0;transform:translateY(14px);
+    transition:opacity 1.4s ease .15s,transform 1.4s cubic-bezier(.2,.8,.2,1) .15s;
+  }
+  body.ready #ui{opacity:1;transform:translateY(0)}
+  .kicker{
+    display:flex;align-items:center;gap:10px;
+    font-family:"Cormorant Garamond","Noto Serif SC",serif;
+    font-size:10px;font-weight:500;letter-spacing:.34em;text-transform:uppercase;
+    color:rgba(255,222,202,.58);
+  }
+  .kicker:before{content:"";width:28px;height:1px;background:linear-gradient(90deg,var(--rose),transparent);opacity:.8}
+  h1{
+    font-family:"Noto Serif SC","Songti SC","STSong",serif;
+    font-weight:500;font-size:clamp(44px,7.2vw,92px);line-height:1.02;
+    letter-spacing:.06em;margin:.18em 0 .12em;
+    color:#fff2e5;
+    background:linear-gradient(118deg,#fff8ed 8%,#ffd9d2 39%,#ff9fb2 69%,#cc647d 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 4px 34px rgba(255,92,124,.17));
+  }
+  .sub{
+    margin:0;font-family:"Cormorant Garamond","Noto Serif SC",serif;
+    font-size:clamp(12px,1.5vw,16px);letter-spacing:.28em;
+    color:rgba(255,232,219,.48);
+  }
+  #hint{
+    position:fixed;z-index:5;left:50%;bottom:calc(23px + var(--safe-bottom));
+    transform:translateX(-50%);white-space:nowrap;
+    font-size:9.5px;letter-spacing:.18em;color:rgba(255,232,219,.34);
+    pointer-events:none;transition:opacity 1s ease;
+  }
+  #rebloom{
+    position:fixed;z-index:7;right:clamp(16px,3.4vw,48px);bottom:calc(20px + var(--safe-bottom));
+    display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 15px;
+    border-radius:999px;border:1px solid rgba(255,220,202,.2);
+    background:linear-gradient(180deg,rgba(74,22,37,.58),rgba(24,6,14,.54));
+    backdrop-filter:blur(16px) saturate(135%);-webkit-backdrop-filter:blur(16px) saturate(135%);
+    color:rgba(255,237,226,.8);font-size:10.5px;letter-spacing:.08em;cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 14px 35px rgba(0,0,0,.2);
+    transition:border-color .25s ease,background .25s ease,transform .18s ease,color .25s ease;
+  }
+  #rebloom:hover{border-color:rgba(255,201,200,.52);background:linear-gradient(180deg,rgba(108,32,52,.72),rgba(38,8,19,.64));color:#fff8ee;transform:translateY(-1px)}
+  #rebloom:active{transform:translateY(0) scale(.97)}
+  #rebloom svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+  #loader{
+    position:fixed;inset:0;z-index:30;display:grid;place-items:center;
+    background:
+      radial-gradient(ellipse 65% 55% at 50% 46%,rgba(94,17,41,.9),rgba(22,5,13,.97) 62%,#070205 100%);
+    transition:opacity 1.15s ease,visibility 1.15s ease;
+  }
+  #loader.is-gone{opacity:0;visibility:hidden;pointer-events:none}
+  .loader-inner{text-align:center;transform:translateY(-3vh)}
+  .loader-mark{width:52px;height:52px;margin:0 auto 22px;position:relative}
+  .loader-mark:before,.loader-mark:after{
+    content:"";position:absolute;inset:8px;border:1px solid rgba(255,157,176,.58);border-radius:60% 40% 56% 44%;
+    transform:rotate(45deg);animation:turn 3.2s linear infinite;
+  }
+  .loader-mark:after{inset:16px;border-color:rgba(255,218,170,.55);animation-duration:2.2s;animation-direction:reverse}
+  @keyframes turn{to{transform:rotate(405deg)}}
+  .loader-inner .kicker{justify-content:center;color:rgba(255,226,207,.52)}
+  .loader-inner h2{
+    font-family:"Noto Serif SC","Songti SC",serif;font-weight:400;
+    font-size:clamp(36px,6vw,64px);letter-spacing:.1em;margin:.3em 0 .45em;
+    color:#fff0e2;
+  }
+  .loader-inner p:last-child{font-size:9px;letter-spacing:.3em;color:rgba(255,226,207,.38);margin:0}
+  @media (max-width:720px){
+    #ui{left:18px;top:calc(18px + var(--safe-top))}
+    h1{font-size:clamp(40px,11vw,58px);letter-spacing:.04em;margin-top:.2em}
+    .kicker{font-size:8.5px;letter-spacing:.24em}
+    .kicker:before{width:18px}
+    .sub{font-size:11px;letter-spacing:.2em}
+    #hint{bottom:calc(76px + var(--safe-bottom));font-size:8.5px;letter-spacing:.1em}
+    #rebloom{right:14px;bottom:calc(14px + var(--safe-bottom));height:36px;padding:0 13px;font-size:9.5px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .loader-mark:before,.loader-mark:after{animation:none}
+  }
+</style>
+</head>
+<body>
+<div id="loader">
+  <div class="loader-inner">
+    <div class="loader-mark"></div>
+    <p class="kicker">A Particle Bouquet</p>
+    <h2>粒子玫瑰</h2>
+    <p>正在让玫瑰绽放</p>
+  </div>
+</div>
+<canvas id="scene" aria-label="一束会旋转、会呼吸的 3D 粒子玫瑰"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+<header id="ui">
+  <div class="kicker">A Particle Bouquet</div>
+  <h1>粒子玫瑰</h1>
+  <p class="sub">一束会呼吸的花</p>
+</header>
+<div id="hint">拖动旋转 · 滚轮缩放 · 双击重绽</div>
+<button id="rebloom" type="button" title="重新绽放（R）">
+  <svg viewBox="0 0 24 24"><path d="M12 3.4c1.2 2.7 2.2 5.4 2.2 7.7 0 2.1-1 3.8-2.2 4.6-1.2-.8-2.2-2.5-2.2-4.6 0-2.3 1-5 2.2-7.7Z"/><path d="M4.9 8.7c2.7.5 5.2 1.3 7.1 2.4 1.8 1 2.8 2.5 3.1 3.9-1.4.5-3.4.1-5.2-1-1.9-1.1-3.7-3.2-5-5.3Z"/><path d="M19.1 8.7c-2.7.5-5.2 1.3-7.1 2.4-1.8 1-2.8 2.5-3.1 3.9 1.4.5 3.4.1 5.2-1 1.9-1.1 3.7-3.2 5-5.3Z"/><path d="M12 15.9v5.1"/></svg>
+  重新绽放
+</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  if(!window.THREE){
+    const l=document.querySelector('#loader p:last-child');
+    if(l) l.textContent='Three.js 加载失败，请检查网络后刷新';
+    return;
+  }
+  const TAU=Math.PI*2;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const smoothstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+  const easeOutCubic=t=>1-Math.pow(1-t,3);
+  const rand=(a=0,b=1)=>a+Math.random()*(b-a);
+  function seeded(seed){
+    let s=seed>>>0;
+    return function(){
+      s=(s+0x6D2B79F5)|0;
+      let t=Math.imul(s^(s>>>15),1|s);
+      t=(t+Math.imul(t^(t>>>7),61|t))^t;
+      return ((t^(t>>>14))>>>0)/4294967296;
+    };
+  }
+
+  /* ---------- renderer / camera ---------- */
+  const canvas=$('scene');
+  let renderer;
+  try{
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
+  }catch(err){
+    const l=document.querySelector('#loader p:last-child');
+    if(l) l.textContent='这个浏览器需要 WebGL 才能让玫瑰绽放';
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
+  renderer.setClearColor(0x000000,0);
+  renderer.autoClear=true;
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(37,1,.1,80);
+  const root=new THREE.Group();
+  scene.add(root);
+  const state={time:0,bloom:0,bloomStart:.2,zoom:1,yaw:0,pitch:0,targetYaw:0,targetPitch:0,dragging:false,lastX:0,lastY:0,autoSpin:0,pointerX:0,pointerY:0};
+  const viewSize=new THREE.Vector2();
+  let baseDistance=10;
+
+  function resize(){
+    const w=window.innerWidth,h=window.innerHeight;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
+    renderer.setSize(w,h,false);
+    renderer.getDrawingBufferSize(viewSize);
+    camera.aspect=w/h;
+    const halfW=2.35,halfH=3.1;
+    const tan=Math.tan(THREE.MathUtils.degToRad(camera.fov*.5));
+    const distH=halfH/tan;
+    const distW=halfW/(tan*camera.aspect);
+    baseDistance=Math.max(distH,distW)*1.04+.65;
+    camera.position.set(.68,.40,baseDistance*state.zoom);
+    camera.lookAt(0,.02,0);
+    camera.updateProjectionMatrix();
+    const ps=viewSize.y*.42;
+    timeUniforms.pixelScale.value=ps;
+    if(dustMaterial) dustMaterial.uniforms.uPixelScale.value=ps;
+  }
+
+  /* ---------- textures ---------- */
+  function makeCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
+  function makeDotTexture(){
+    const s=128,c=makeCanvas(s,s),ctx=c.getContext('2d');
+    const g=ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(.18,'rgba(255,255,255,.96)');
+    g.addColorStop(.43,'rgba(255,255,255,.42)');
+    g.addColorStop(.74,'rgba(255,255,255,.08)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g;ctx.fillRect(0,0,s,s);
+    const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;return t;
+  }
+  function makeGlowTexture(){
+    const s=256,c=makeCanvas(s,s),ctx=c.getContext('2d');
+    const g=ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+    g.addColorStop(0,'rgba(255,255,255,.32)');
+    g.addColorStop(.28,'rgba(255,208,214,.14)');
+    g.addColorStop(.64,'rgba(255,120,148,.045)');
+    g.addColorStop(1,'rgba(255,120,148,0)');
+    ctx.fillStyle=g;ctx.fillRect(0,0,s,s);
+    const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;return t;
+  }
+  function makeRingTexture(){
+    const s=256,c=makeCanvas(s,s),ctx=c.getContext('2d');
+    ctx.translate(s/2,s/2);
+    ctx.strokeStyle='rgba(255,225,205,.9)';
+    ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(0,0,s*.36,0,TAU);ctx.stroke();
+    ctx.strokeStyle='rgba(255,150,171,.5)';ctx.lineWidth=8;ctx.beginPath();ctx.arc(0,0,s*.36,0,TAU);ctx.stroke();
+    const t=new THREE.CanvasTexture(c);t.minFilter=THREE.LinearFilter;return t;
+  }
+  const dotTex=makeDotTexture();
+  const glowTex=makeGlowTexture();
+  const ringTex=makeRingTexture();
+  const timeUniforms={time:{value:0},pixelScale:{value:1}};
+
+  /* ---------- lights for the solid stem / leaf work ---------- */
+  const hemiLight=new THREE.HemisphereLight(0xffe3d4,0x190309,.95);
+  const keyLight=new THREE.DirectionalLight(0xffd2bf,2.2); keyLight.position.set(-4,7,6);
+  const rimLight=new THREE.DirectionalLight(0xff6f8e,1.15); rimLight.position.set(4,-1,-3);
+  scene.add(hemiLight,keyLight,rimLight);
+
+  /* ---------- solid 3D rose petals ---------- */
+  const petalVertex=`
+    uniform float uTime,uBloom;
+    attribute vec3 aColor;
+    attribute float aDelay;
+    varying vec3 vColor,vNormalV,vViewV;
+    varying vec2 vUv;
+    void main(){
+      float b=smoothstep(0.0,1.0,clamp(uBloom*1.45-aDelay*.48,0.0,1.0));
+      vec3 p=mix(vec3(position.xy*.055,position.z*.15+.015),position,b);
+      float breath=sin(uTime*.7+aDelay*11.0+length(position.xy)*2.1);
+      p.xy*=1.0+breath*.004*b;
+      vec4 mv=modelViewMatrix*vec4(p,1.0);
+      vNormalV=normalize(normalMatrix*normal);
+      vViewV=-mv.xyz;
+      vColor=aColor; vUv=uv;
+      gl_Position=projectionMatrix*mv;
+    }
+  `;
+  const petalFragment=`
+    precision highp float;
+    uniform float uTime;
+    varying vec3 vColor,vNormalV,vViewV;
+    varying vec2 vUv;
+    float hash21(vec2 p){
+      p=fract(p*vec2(123.34,456.21));
+      p+=dot(p,p+45.32);
+      return fract(p.x*p.y);
+    }
+    void main(){
+      vec3 N=normalize(vNormalV);
+      if(!gl_FrontFacing) N=-N;
+      vec3 V=normalize(vViewV);
+      vec3 L1=normalize(vec3(-.48,.62,.62));
+      vec3 L2=normalize(vec3(.58,-.18,.56));
+      float diff=max(dot(N,L1),0.0);
+      float fill=max(dot(N,L2),0.0);
+      float fres=pow(1.0-max(dot(N,V),0.0),2.35);
+      vec3 base=vColor;
+      vec3 col=base*(.24+.96*diff)+base*vec3(.28,.09,.11)*(.30+.70*fill);
+      col+=vec3(1.0,.57,.30)*fres*.38;
+      vec3 H=normalize(L1+V);
+      col+=vec3(1.0,.83,.63)*pow(max(dot(N,H),0.0),28.0)*.17;
+      if(!gl_FrontFacing) col*=.64;
+      float glint=step(.986,hash21(floor(vUv*vec2(124.,44.))+floor(uTime*1.4)))*smoothstep(.10,.75,vUv.y);
+      col+=vec3(1.0,.75,.43)*glint*.42;
+      col=pow(max(col,0.0),vec3(.93));
+      gl_FragColor=vec4(col,1.0);
+    }
+  `;
+  function makePetalMaterial(){
+    return new THREE.ShaderMaterial({
+      uniforms:{uTime:timeUniforms.time,uBloom:{value:0}},
+      vertexShader:petalVertex,fragmentShader:petalFragment,
+      side:THREE.DoubleSide
+    });
+  }
+
+  const PALETTES={
+    crimson:{outer:'#bd173c',inner:'#3d000f',rim:'#ffd09a'},
+    wine:{outer:'#8b0b2e',inner:'#270007',rim:'#f5bd8b'},
+    blush:{outer:'#d96d84',inner:'#731b32',rim:'#ffe0b8'},
+    pink:{outer:'#c63659',inner:'#52061d',rim:'#ffd4a8'},
+    red:{outer:'#d21a41',inner:'#41000f',rim:'#ffcb95'},
+    gold:{outer:'#d7a15d',inner:'#6e3b1e',rim:'#fff0c8'},
+    coral:{outer:'#c95d4d',inner:'#57171b',rim:'#ffd5ae'}
+  };
+  const ROSE_DATA=[
+    {x:-1.28,y:1.36,z:.10,s:.78,rx:.04,ry:-.26,rz:.08,palette:'blush',seed:17},
+    {x:1.24,y:1.30,z:-.02,s:.76,rx:-.04,ry:.27,rz:-.09,palette:'red',seed:29},
+    {x:-.04,y:2.10,z:-.22,s:.75,rx:.07,ry:.04,rz:.02,palette:'wine',seed:43},
+    {x:-1.54,y:.30,z:.26,s:.69,rx:.05,ry:-.35,rz:.13,palette:'pink',seed:61},
+    {x:1.50,y:.27,z:.18,s:.68,rx:-.03,ry:.35,rz:-.12,palette:'crimson',seed:73},
+    {x:.06,y:.82,z:.58,s:.60,rx:.10,ry:.05,rz:.05,palette:'gold',seed:89},
+    {x:-.48,y:1.62,z:.48,s:.50,rx:.06,ry:-.12,rz:.04,palette:'coral',seed:101}
+  ];
+
+  function makeRoseGeometry(seedHex,paletteName){
+    const rnd=seeded(seedHex);
+    const pos=[],col=[],delay=[],uvs=[],index=[];
+    const cIn=new THREE.Color(PALETTES[paletteName].inner);
+    const cOut=new THREE.Color(PALETTES[paletteName].outer);
+    const cRim=new THREE.Color(PALETTES[paletteName].rim);
+    const c=new THREE.Color();
+    const LAYERS=9,NU=8,NV=7;
+    for(let l=0;l<LAYERS;l++){
+      const lt=l/(LAYERS-1);
+      const petals=Math.max(4,Math.round(lerp(8,4,lt)));
+      const len=lerp(1.12,.26,lt);
+      const wid=lerp(.90,.40,lt);
+      const zBase=lerp(-.18,.24,lt);
+      const off=seedHex*.173+l*2.39996;
+      for(let p=0;p<petals;p++){
+        const ang=off+p*TAU/petals+(rnd()-.5)*.12;
+        const start=pos.length/3;
+        for(let iv=0;iv<=NV;iv++){
+          const v=iv/NV;
+          for(let iu=0;iu<=NU;iu++){
+            const u=iu/NU*2-1;
+            const spread=.56+.44*Math.sin(Math.PI*v);
+            const side=u*wid*spread*(1-.10*Math.abs(u));
+            const roundTop=smoothstep(.78,1,v);
+            const radial=.08+v*len-.042*Math.pow(Math.abs(u),2.2)*roundTop-.028*Math.exp(-u*u*7.0)*roundTop;
+            const cup=.17*Math.sin(v*Math.PI)+.12*u*u*(.4+v);
+            let z=zBase+cup;
+            z+=smoothstep(.50,1,v)*(lt*.13-(1-lt)*.10);
+            z+=.014*Math.sin(u*Math.PI*2.0+v*5.5+p*.8)*smoothstep(.4,1,v);
+            pos.push(Math.cos(ang)*radial-Math.sin(ang)*side,
+              Math.sin(ang)*radial+Math.cos(ang)*side,z);
+            c.copy(cIn).lerp(cOut,smoothstep(.02,1,v)*.90+.06*(1-lt));
+            c.multiplyScalar(.60+.40*smoothstep(0,.52,v));
+            const edge=smoothstep(.72,1,Math.abs(u))*smoothstep(.38,1,v);
+            c.lerp(cRim,edge*.22);
+            c.lerp(cRim,smoothstep(.88,1,v)*.08);
+            c.offsetHSL((rnd()-.5)*.008,(rnd()-.5)*.04,(rnd()-.5)*.035);
+            col.push(c.r,c.g,c.b);
+            delay.push(lt*.25+rnd()*.03);
+            uvs.push(u*.5+.5,v);
+          }
+        }
+        for(let iv=0;iv<NV;iv++){
+          for(let iu=0;iu<NU;iu++){
+            const a=start+iv*(NU+1)+iu,b=a+1,c2=a+NU+1,d=c2+1;
+            index.push(a,b,c2,b,d,c2);
+          }
+        }
+      }
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('aColor',new THREE.Float32BufferAttribute(col,3));
+    g.setAttribute('aDelay',new THREE.Float32BufferAttribute(delay,1));
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+    g.setIndex(index);
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    return g;
+  }
+
+  const goldMat=new THREE.MeshStandardMaterial({color:0xffd19a,metalness:.58,roughness:.27,emissive:0x3a1608,emissiveIntensity:.7,side:THREE.DoubleSide});
+  const spiralCurve=(()=>{
+    const pts=[];
+    for(let i=0;i<=140;i++){
+      const q=i/140,a=q*TAU*1.8,r=.010+q*.145;
+      pts.push(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*r,.365+Math.sin(q*Math.PI)*.015));
+    }
+    return new THREE.CatmullRomCurve3(pts);
+  })();
+  const spiralGeo=new THREE.TubeGeometry(spiralCurve,110,.0048,5,false);
+  const roses=[];
+  ROSE_DATA.forEach((d,i)=>{
+    const geom=makeRoseGeometry(d.seed,d.palette);
+    const mat=makePetalMaterial();
+    const mesh=new THREE.Mesh(geom,mat);
+    mesh.frustumCulled=false;
+    const center=new THREE.Mesh(spiralGeo,goldMat);
+    center.frustumCulled=false;
+    center.scale.setScalar(.06);
+    const group=new THREE.Group();
+    group.position.set(d.x,d.y,d.z);
+    group.rotation.set(d.rx,d.ry,d.rz);
+    group.scale.setScalar(d.s);
+    group.add(mesh,center);
+    root.add(group);
+    roses.push({group,mesh,center,mat,data:d,phase:rand(0,TAU),baseY:d.y,baseRx:d.rx,baseRy:d.ry,baseRz:d.rz});
+  });
+  /* ---------- stems, leaves, ribbon ---------- */
+  const stemRnd=seeded(27011);
+  const stemPos=[],stemCol=[],leafPos=[],leafCol=[];
+  const cStemBase=new THREE.Color('#16382a');
+  const cStem=new THREE.Color('#3f7050');
+  const cLeaf=new THREE.Color('#77a45e');
+  const cLeafDark=new THREE.Color('#1e4933');
+  const tmpC=new THREE.Color();
+  function addLeaf(base,angle,t){
+    const dir=new THREE.Vector3(Math.cos(angle),.28+stemRnd()*.42,Math.sin(angle)).normalize();
+    const side=new THREE.Vector3(-Math.sin(angle),.12,Math.cos(angle)).normalize();
+    for(let j=0;j<46;j++){
+      const q=stemRnd();
+      const half=Math.pow(Math.sin(Math.PI*q),.68)*.145;
+      const off=(stemRnd()*2-1)*half;
+      leafPos.push(base.x+dir.x*q*.52+side.x*off,
+        base.y+dir.y*q*.52+side.y*off+(stemRnd()-.5)*.013,
+        base.z+dir.z*q*.52+side.z*off);
+      tmpC.copy(cLeafDark).lerp(cLeaf,q*.8+stemRnd()*.2);
+      leafCol.push(tmpC.r,tmpC.g,tmpC.b);
+    }
+  }
+  for(let ri=0;ri<ROSE_DATA.length;ri++){
+    const d=ROSE_DATA[ri];
+    const tie=new THREE.Vector3((stemRnd()-.5)*.18,-2.52,(stemRnd()-.5)*.10);
+    const top=new THREE.Vector3(d.x,d.y-.28,d.z-.05);
+    const curve=new THREE.CatmullRomCurve3([
+      tie,
+      new THREE.Vector3(d.x*.20+(stemRnd()-.5)*.18,-1.35,.28),
+      new THREE.Vector3(d.x*.72+(stemRnd()-.5)*.14,-.30,.18),
+      top
+    ],false,'catmullrom',.55);
+    const N=115;
+    for(let i=0;i<=N;i++){
+      const t=i/N;
+      const p=curve.getPoint(t);
+      const jitter=.018*(.3+t);
+      p.x+=(stemRnd()-.5)*jitter; p.z+=(stemRnd()-.5)*jitter;
+      stemPos.push(p.x,p.y,p.z);
+      tmpC.copy(cStemBase).lerp(cStem,.3+stemRnd()*.7);
+      stemCol.push(tmpC.r,tmpC.g,tmpC.b);
+    }
+    addLeaf(curve.getPoint(.40),-1.35+d.x*.2+(stemRnd()-.5)*.9,.2);
+    addLeaf(curve.getPoint(.62),1.25+d.x*.18+(stemRnd()-.5)*.8,.25);
+    if(stemRnd()>.35) addLeaf(curve.getPoint(.76),3.0+d.x*.1,.2);
+  }
+  function buildPointGeometry(pos,col){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    g.computeBoundingSphere();
+    return g;
+  }
+  const stemMat=new THREE.PointsMaterial({size:.064,map:dotTex,transparent:true,alphaTest:.015,depthWrite:false,vertexColors:true,sizeAttenuation:true,opacity:.92});
+  const stems=new THREE.Points(buildPointGeometry(stemPos,stemCol),stemMat);
+  stems.frustumCulled=false; stems.renderOrder=2; root.add(stems);
+  const leafMat=new THREE.PointsMaterial({size:.082,map:dotTex,transparent:true,alphaTest:.015,depthWrite:false,vertexColors:true,sizeAttenuation:true,opacity:.92});
+  const leaves=new THREE.Points(buildPointGeometry(leafPos,leafCol),leafMat);
+  leaves.frustumCulled=false; leaves.renderOrder=3; root.add(leaves);
+
+  // solid stems give the bouquet a real three-dimensional spine
+  const solidStemMat=new THREE.MeshStandardMaterial({color:0x264b34,roughness:.72,metalness:.04});
+  const solidRnd=seeded(4407);
+  for(let i=0;i<ROSE_DATA.length;i++){
+    const d=ROSE_DATA[i];
+    const tie=new THREE.Vector3((solidRnd()-.5)*.16,-2.54,(solidRnd()-.5)*.10);
+    const curve=new THREE.CatmullRomCurve3([
+      tie,
+      new THREE.Vector3(d.x*.20+(solidRnd()-.5)*.16,-1.32,.27),
+      new THREE.Vector3(d.x*.72+(solidRnd()-.5)*.12,-.28,.18),
+      new THREE.Vector3(d.x,d.y-.26,d.z-.04)
+    ],false,'catmullrom',.55);
+    const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,42,.023,7,false),solidStemMat);
+    tube.frustumCulled=false;
+    root.add(tube);
+  }
+
+  // ribbon: two loops, a knot and trailing tails
+  const ribPos=[],ribCol=[];
+  const cGold=new THREE.Color('#ffe0ad'), cRose=new THREE.Color('#f3a5a8'), cCream=new THREE.Color('#fff6de');
+  for(const s of [-1,1]){
+    for(let i=0;i<88;i++){
+      const a=i/88*TAU;
+      const tilt=s*.24;
+      const x0=Math.cos(a)*.27, y0=Math.sin(a)*.16;
+      const x=s*.24+x0*Math.cos(tilt)-y0*Math.sin(tilt);
+      const y=-2.03+x0*Math.sin(tilt)+y0*Math.cos(tilt);
+      const z=.42+Math.sin(a*2)*.035;
+      ribPos.push(x,y,z);
+      tmpC.copy(cRose).lerp(cGold,.35+stemRnd()*.55);
+      ribCol.push(tmpC.r,tmpC.g,tmpC.b);
+    }
+    const tail=new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,-2.05,.43),
+      new THREE.Vector3(s*.13,-2.42,.46),
+      new THREE.Vector3(s*.30,-2.82,.41),
+      new THREE.Vector3(s*.29+(stemRnd()-.5)*.10,-3.18,.36)
+    ]);
+    for(let i=0;i<112;i++){
+      const p=tail.getPoint(i/111);
+      p.x+=(stemRnd()-.5)*.015; p.z+=(stemRnd()-.5)*.012;
+      ribPos.push(p.x,p.y,p.z);
+      tmpC.copy(cGold).lerp(cCream,stemRnd()*.5);
+      ribCol.push(tmpC.r,tmpC.g,tmpC.b);
+    }
+  }
+  for(let i=0;i<42;i++){
+    const a=stemRnd()*TAU,r=stemRnd()*.065;
+    ribPos.push(Math.cos(a)*r,-2.04+Math.sin(a)*r*.6,.435);
+    tmpC.copy(cCream); ribCol.push(tmpC.r,tmpC.g,tmpC.b);
+  }
+  const ribbonMat=new THREE.PointsMaterial({size:.072,map:dotTex,transparent:true,alphaTest:.01,depthWrite:false,vertexColors:true,sizeAttenuation:true,opacity:.95,blending:THREE.AdditiveBlending});
+  const ribbon=new THREE.Points(buildPointGeometry(ribPos,ribCol),ribbonMat);
+  ribbon.frustumCulled=false; ribbon.renderOrder=5; root.add(ribbon);
+
+  /* ---------- floating dust / pollen ---------- */
+  const dustUniforms={
+    uTime:timeUniforms.time,uPixelScale:timeUniforms.pixelScale,uMap:{value:dotTex}
+  };
+  const DUST=150;
+  const dustPos=new Float32Array(DUST*3),dustCol=new Float32Array(DUST*3),dustSize=new Float32Array(DUST),dustPhase=new Float32Array(DUST),dustSpeed=new Float32Array(DUST);
+  const dustPalette=[new THREE.Color('#ffd7a0'),new THREE.Color('#ff9dad'),new THREE.Color('#ffe9cf'),new THREE.Color('#ffc4c9')];
+  for(let i=0;i<DUST;i++){
+    const x=rand(-4.2,4.2),y=rand(-3,4.6),z=rand(-2.4,2.2);
+    dustPos[i*3]=x;dustPos[i*3+1]=y;dustPos[i*3+2]=z;
+    const c=dustPalette[Math.floor(Math.random()*dustPalette.length)];
+    dustCol[i*3]=c.r;dustCol[i*3+1]=c.g;dustCol[i*3+2]=c.b;
+    dustSize[i]=Math.random()>.90?rand(.10,.22):rand(.015,.055);
+    dustPhase[i]=rand(0,TAU);dustSpeed[i]=rand(.06,.30);
+  }
+  const dustGeo=new THREE.BufferGeometry();
+  dustGeo.setAttribute('position',new THREE.BufferAttribute(dustPos,3));
+  dustGeo.setAttribute('aColor',new THREE.BufferAttribute(dustCol,3));
+  dustGeo.setAttribute('aSize',new THREE.BufferAttribute(dustSize,1));
+  dustGeo.setAttribute('aPhase',new THREE.BufferAttribute(dustPhase,1));
+  dustGeo.setAttribute('aSpeed',new THREE.BufferAttribute(dustSpeed,1));
+  const dustMaterial=new THREE.ShaderMaterial({
+    uniforms:dustUniforms,
+    transparent:true,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending,
+    vertexShader:`
+      uniform float uTime,uPixelScale;
+      attribute vec3 aColor;
+      attribute float aSize,aPhase,aSpeed;
+      varying vec3 vColor; varying float vAlpha;
+      void main(){
+        vec3 p=position;
+        p.y=mod(position.y+uTime*aSpeed+3.1,7.9)-3.2;
+        p.x+=sin(uTime*.26+aPhase)*.20+sin(uTime*.11+aPhase*2.0)*.10;
+        p.z+=cos(uTime*.22+aPhase)*.12;
+        vec4 mv=modelViewMatrix*vec4(p,1.0);
+        gl_Position=projectionMatrix*mv;
+        gl_PointSize=clamp(aSize*uPixelScale/max(1.0,-mv.z),1.0,36.0);
+        vColor=aColor;
+        vAlpha=(.12+.54*pow(abs(sin(uTime*.48+aPhase*2.1)),2.0));
+      }
+    `,
+    fragmentShader:`
+      uniform sampler2D uMap;
+      varying vec3 vColor; varying float vAlpha;
+      void main(){
+        vec4 t=texture2D(uMap,gl_PointCoord);
+        gl_FragColor=vec4(vColor,t.a*vAlpha*.9);
+      }
+    `
+  });
+  const dust=new THREE.Points(dustGeo,dustMaterial);
+  dust.frustumCulled=false;dust.renderOrder=1;scene.add(dust);
+
+  /* ---------- glow, base haze and bloom ring ---------- */
+  function addGlow(color,scale,opacity,x,y,z,order){
+    const m=new THREE.SpriteMaterial({map:glowTex,color,transparent:true,opacity,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending});
+    const sp=new THREE.Sprite(m);sp.position.set(x,y,z);sp.scale.set(scale,scale,1);sp.renderOrder=order||0;scene.add(sp);return sp;
+  }
+  addGlow(0xff6d8b,14,.19,0,1.1,-3.5,0);
+  addGlow(0xffba79,8,.08,.5,-.6,-2.4,0);
+  addGlow(0xffb8a1,4.2,.15,0,-2.55,.10,0);
+  const ringMat=new THREE.SpriteMaterial({map:ringTex,color:0xffd5c4,transparent:true,opacity:0,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending});
+  const bloomRing=new THREE.Sprite(ringMat);
+  bloomRing.position.set(0,1.0,-.4);bloomRing.scale.setScalar(2);bloomRing.visible=false;bloomRing.renderOrder=9;scene.add(bloomRing);
+  let ringAge=0;
+
+  function triggerBloom(){
+    state.bloomStart=state.time+.03;
+    state.bloom=0;
+    ringAge=0; bloomRing.visible=true;
+    hideHint();
+  }
+
+  /* ---------- interaction ---------- */
+  const hintEl=$('hint');
+  let hintFade=setTimeout(()=>{ hintEl.style.opacity='0'; },10000);
+  function hideHint(){ clearTimeout(hintFade); hintEl.style.opacity='0'; }
+  canvas.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    state.dragging=true; state.lastX=e.clientX; state.lastY=e.clientY;
+    canvas.classList.add('dragging');
+    hideHint();
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  window.addEventListener('pointermove',e=>{
+    state.pointerX=(e.clientX/window.innerWidth)*2-1;
+    state.pointerY=-((e.clientY/window.innerHeight)*2-1);
+    if(!state.dragging) return;
+    const dx=e.clientX-state.lastX,dy=e.clientY-state.lastY;
+    state.lastX=e.clientX; state.lastY=e.clientY;
+    state.targetYaw=clamp(state.targetYaw+dx*.0062,-.58,.58);
+    state.targetPitch=clamp(state.targetPitch+dy*.0026,-.18,.18);
+  });
+  function endDrag(){ state.dragging=false; canvas.classList.remove('dragging'); }
+  window.addEventListener('pointerup',endDrag);
+  window.addEventListener('pointercancel',endDrag);
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    state.zoom=clamp(state.zoom+e.deltaY*.00062,.82,1.28);
+    hideHint();
+  },{passive:false});
+  canvas.addEventListener('dblclick',triggerBloom);
+  $('rebloom').addEventListener('click',triggerBloom);
+  window.addEventListener('keydown',e=>{
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    if(e.key==='r'||e.key==='R'){ e.preventDefault(); triggerBloom(); }
+  });
+
+  /* ---------- main loop ---------- */
+  let firstFrame=true;
+  let last=performance.now()*0.001;
+  function frame(nowMs){
+    requestAnimationFrame(frame);
+    const now=nowMs*0.001;
+    let dt=now-last; last=now;
+    if(!isFinite(dt)||dt<0) dt=1/60;
+    dt=Math.min(dt,.05);
+    state.time+=dt;
+    const t=state.time;
+    const bloomT=clamp((t-state.bloomStart)/2.9,0,1);
+    const be=easeOutCubic(bloomT);
+    state.bloom=be;
+    timeUniforms.time.value=t;
+    dustUniforms.uTime.value=t;
+
+    // whole bouquet drift: a narrow front-facing sway, never a full spin
+    if(!state.dragging) state.targetYaw*=Math.max(0,1-dt*.06);
+    state.yaw+=(state.targetYaw-state.yaw)*Math.min(1,dt*2.8);
+    root.rotation.y=state.yaw+Math.sin(t*.17)*.11;
+    root.rotation.x+=((state.targetPitch+Math.sin(t*.56)*.010)-root.rotation.x)*Math.min(1,dt*2.2);
+    root.rotation.z=Math.sin(t*.23)*.011;
+    root.position.y=Math.sin(t*.75)*.015;
+    root.scale.setScalar(.94+.06*be);
+
+    // individual roses breathe and sway
+    for(let i=0;i<roses.length;i++){
+      const r=roses[i];
+      const bloom=clamp(be*1.35-i*.025,0,1);
+      r.mat.uniforms.uBloom.value=bloom;
+      r.center.scale.setScalar(.08+.92*bloom);
+      r.group.rotation.x=r.baseRx+Math.sin(t*.55+r.phase)*.018*be;
+      r.group.rotation.y=r.baseRy+Math.sin(t*.39+r.phase*1.4)*.022*be;
+      r.group.rotation.z=r.baseRz+Math.cos(t*.48+r.phase)*.016*be;
+      r.group.position.y=r.baseY+Math.sin(t*.70+r.phase)*.022*be;
+    }
+
+    // camera parallax + smooth zoom
+    const targetZ=baseDistance*state.zoom;
+    camera.position.z+=(targetZ-camera.position.z)*Math.min(1,dt*3.2);
+    camera.position.x+=((.68+state.pointerX*.16)-camera.position.x)*Math.min(1,dt*1.7);
+    camera.position.y+=((.40+state.pointerY*.08)-camera.position.y)*Math.min(1,dt*1.7);
+    camera.lookAt(0,.02+state.pointerY*.02,0);
+
+    // bloom ring
+    if(bloomRing.visible){
+      ringAge+=dt;
+      const u=clamp(ringAge/1.7,0,1);
+      const s=2+u*6.5;
+      bloomRing.scale.set(s,s,1);
+      ringMat.opacity=.36*(1-u)*(1-u);
+      if(u>=1) bloomRing.visible=false;
+    }
+
+    renderer.render(scene,camera);
+
+    if(firstFrame){
+      firstFrame=false;
+      document.body.classList.add('ready');
+      $('loader').classList.add('is-gone');
+    }
+  }
+
+  addEventListener('resize',()=>{
+    const z=camera.position.z/baseDistance;
+    resize();
+    state.zoom=clamp(z,.82,1.28);
+    camera.position.z=baseDistance*state.zoom;
+  });
+  resize();
+  window.__ROSE__={renderer,scene,camera,root,state,roses,triggerBloom,resize,timeUniforms,dustMaterial};
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
+

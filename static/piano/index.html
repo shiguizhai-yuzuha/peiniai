@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>她弹给你听</title>
+<style>
+:root{
+  --ink:#f2ece4; --dim:rgba(242,236,228,.60); --soft:rgba(242,236,228,.32);
+  --line:rgba(255,255,255,.10); --warm:#ffb98a; --warm-hi:#ffd9b8;
+  --m:12px; --l:16px; --full:999px;
+  --e:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{min-height:100%}
+body{
+  background:
+    radial-gradient(110% 60% at 50% -8%, rgba(255,170,110,.13) 0%, transparent 58%),
+    linear-gradient(180deg,#141a28 0%,#0a0d13 100%);
+  color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC",-apple-system,"PingFang SC",serif;
+  display:flex; flex-direction:column; align-items:center;
+  padding:0 20px;
+  overflow-x:hidden; overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  min-height:100svh;
+}
+
+/* 顶部 */
+#top{
+  width:100%; max-width:620px;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:16px 0; font-size:12px; letter-spacing:.2em; color:var(--dim);
+}
+#top a{color:var(--dim); text-decoration:none; padding:.5em 1em;
+  border:1px solid var(--line); border-radius:var(--full); font-size:11px}
+#top a:hover{color:var(--ink); border-color:rgba(255,255,255,.3)}
+
+/* 主区 */
+#stage{
+  flex:1 0 auto; width:100%; max-width:620px;
+  min-height:min(46vh, 300px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:34px;
+}
+
+/* 那个圆 */
+#orb{
+  width:min(46vw, 220px); height:min(46vw, 220px);
+  border-radius:50%;
+  background:radial-gradient(circle at 50% 45%,
+    rgba(255,214,180,.16) 0%, rgba(255,180,140,.06) 42%, transparent 68%);
+  border:1px solid rgba(255,200,160,.16);
+  box-shadow:0 0 60px rgba(255,180,140,.10), inset 0 0 40px rgba(255,180,140,.05);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, box-shadow .5s ease;
+  will-change:transform;
+}
+#orb.beat{
+  transform:scale(1.045);
+  box-shadow:0 0 90px rgba(255,180,140,.24), inset 0 0 50px rgba(255,180,140,.10);
+}
+#orbCore{
+  width:6px; height:6px; border-radius:50%;
+  background:var(--warm); box-shadow:0 0 16px 4px rgba(255,180,140,.5);
+  opacity:.5; transition:opacity .4s ease;
+}
+
+/* 台词 */
+#line{
+  min-height:3.2em; max-width:480px; text-align:center;
+  font-size:clamp(15px,4vw,17px); line-height:1.95; letter-spacing:.05em;
+  color:var(--dim); opacity:0; transition:opacity .5s ease;
+}
+#line.on{opacity:1}
+
+/* 音符轨迹 */
+#trail{
+  width:100%; height:64px; position:relative; overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+}
+#trail i{
+  position:absolute; bottom:0; width:2px; border-radius:2px;
+  background:linear-gradient(180deg,rgba(255,217,184,.9),rgba(255,180,140,.15));
+  animation:trailFlow 3.2s linear forwards;
+}
+@keyframes trailFlow{
+  from{ transform:translateX(0); opacity:0; }
+  12% { opacity:.95; }
+  to  { transform:translateX(-120px); opacity:0; }
+}
+
+/* 按钮 */
+#btns{ display:flex; gap:10px; width:100%; max-width:620px; padding-bottom:16px; }
+#play{
+  flex:1; padding:1em; border:none; border-radius:var(--l); cursor:pointer;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  font-family:inherit; font-size:15px; letter-spacing:.2em;
+  transition:transform .14s var(--e), filter .26s var(--e), box-shadow .26s var(--e);
+  box-shadow:0 8px 26px rgba(255,150,100,.26);
+}
+#play:hover{ filter:brightness(1.06); box-shadow:0 10px 30px rgba(255,150,100,.36); }
+#play:active{ transform:scale(.98); box-shadow:none; }
+#play:disabled{ opacity:.45; cursor:default; box-shadow:none; }
+#stop{
+  flex:none; width:56px; padding:1em; border-radius:var(--l); cursor:pointer;
+  background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--dim);
+  font-family:inherit; font-size:14px;
+}
+#stop:hover{ background:rgba(255,255,255,.09); color:var(--ink); }
+
+/* 加谱面板 */
+#addPanel{
+  display:none; width:100%; max-width:620px; padding-bottom:10px;
+}
+#addPanel.on{ display:block; }
+#addWrap{
+  border:1px solid var(--line); border-radius:var(--l);
+  background:rgba(255,255,255,.04); padding:14px;
+}
+#addWrap .row{ display:flex; gap:8px; margin-bottom:8px; }
+#addWrap input{
+  flex:1; padding:.55em .8em; border-radius:var(--m);
+  border:1px solid var(--line); background:rgba(0,0,0,.22);
+  color:var(--ink); font-family:inherit; font-size:13px; outline:none;
+}
+#addWrap input:focus{ border-color:rgba(255,185,138,.5); }
+#addWrap textarea{
+  width:100%; height:86px; padding:.6em .8em; border-radius:var(--m);
+  border:1px solid var(--line); background:rgba(0,0,0,.22);
+  color:var(--ink); font-family:ui-monospace,monospace; font-size:12.5px;
+  line-height:1.7; outline:none; resize:vertical;
+}
+#addWrap .hint3{ font-size:11px; line-height:1.8; color:var(--soft); margin:6px 0 8px; }
+#addWrap .row2{ display:flex; gap:8px; }
+#addWrap button{
+  flex:1; padding:.6em; border-radius:var(--m); cursor:pointer;
+  background:rgba(255,255,255,.06); border:1px solid var(--line); color:var(--dim);
+  font-family:inherit; font-size:12px; letter-spacing:.14em;
+}
+#addWrap button.pri{
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208; border:none;
+}
+#addWrap .msg2{ font-size:11px; color:rgba(255,150,130,.9); margin-top:8px; min-height:1.2em; }
+
+/* 曲目（下拉） */
+#songBar{
+  display:flex; gap:8px; width:100%; max-width:620px; padding-bottom:10px;
+  align-items:stretch;
+}
+#songSel{
+  flex:1; min-width:0;
+  padding:.7em .9em; border-radius:var(--m);
+  border:1px solid var(--line); background:rgba(255,255,255,.05);
+  color:var(--ink); font-family:inherit; font-size:13.5px; letter-spacing:.06em;
+  outline:none; cursor:pointer;
+  appearance:none; -webkit-appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,rgba(255,185,138,.75) 50%),
+                   linear-gradient(135deg,rgba(255,185,138,.75) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 55%, calc(100% - 13px) 55%;
+  background-size:5px 5px, 5px 5px;
+  background-repeat:no-repeat;
+}
+#songSel:focus{ border-color:rgba(255,185,138,.5); }
+#songSel option{ background:#141a28; color:var(--ink); }
+#addBtn{
+  flex:none; padding:.7em 1em; border-radius:var(--m); cursor:pointer;
+  border:1px solid rgba(255,190,150,.35); background:rgba(255,185,138,.10);
+  color:#ffcf9e; font-family:inherit; font-size:12.5px; letter-spacing:.12em;
+}
+#addBtn:active{ transform:scale(.97) }
+
+/* 状态选择 */
+#modes{
+  display:flex; gap:6px; width:100%; max-width:620px; padding-bottom:14px;
+  overflow-x:auto;
+}
+#modes button{
+  flex:1 1 auto; min-width:64px; padding:.55em .4em;
+  border-radius:var(--m); cursor:pointer;
+  background:transparent; border:1px solid var(--line); color:var(--soft);
+  font-family:inherit; font-size:11.5px; letter-spacing:.1em;
+  transition:.24s var(--e); white-space:nowrap;
+}
+#modes button:hover{ color:var(--ink); border-color:rgba(255,255,255,.24); }
+#modes button.on{
+  color:#241208; background:linear-gradient(135deg,#ffb98a,#ff9a6a);
+  border-color:transparent;
+}
+
+@media (max-width:480px){
+  #orb{ width:52vw; height:52vw; }
+  #line{ font-size:15px; }
+}
+
+/* 屏幕矮的时候压缩，尽量一屏装下 */
+@media (max-height:760px){
+  #stage{ min-height:auto; gap:18px; padding:8px 0; }
+  #orb{ width:min(34vw,140px); height:min(34vw,140px); }
+  #orbCore{ width:5px; height:5px; }
+  #line{ min-height:2.4em; font-size:14.5px; line-height:1.8; }
+  #trail{ height:44px; }
+  #songBar{ padding-bottom:8px; }
+  #modes{ padding-bottom:10px; }
+  #btns{ padding-bottom:12px; }
+  #play{ padding:.85em; font-size:14px; }
+  #stop{ width:50px; padding:.85em; }
+}
+@media (max-height:620px){
+  #orb{ width:min(26vw,110px); height:min(26vw,110px); }
+  #trail{ height:34px; }
+  #stage{ gap:12px; }
+}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <span>她弹给你听</span>
+  <a href="../keys" style="margin-right:8px">自己弹</a>
+  <a href="../">回去</a>
+</div>
+
+<div id="stage">
+  <div id="orb"><div id="orbCore"></div></div>
+  <div id="line"></div>
+  <div id="trail"></div>
+</div>
+
+<div id="songBar">
+  <select id="songSel"></select>
+  <button id="addBtn">＋ 加谱</button>
+</div>
+
+<div id="addPanel">
+  <div id="addWrap">
+    <div class="row">
+      <input id="addName" placeholder="曲名">
+    </div>
+    <textarea id="addScore" placeholder="粘简谱，例如：
+5 5 6 6 | 5 0 4 4 | 3 3 2 2 | 1_"></textarea>
+    <div class="hint3">
+      1 2 3 4 5 6 7 = do re mi fa sol la si　·　0 = 休止　·　一个数字一拍<br>
+      末尾加 <code>_</code> = 半拍　·　加 <code>-</code> = 延长一拍　·　加 <code>'</code> = 高八度　·　加 <code>.</code> = 低八度<br>
+      <code>|</code> 只是分隔，不影响结果
+    </div>
+    <div class="row2">
+      <button class="pri" id="addSave">加进去</button>
+      <button id="addClose">收起</button>
+    </div>
+    <div class="msg2" id="addMsg"></div>
+  </div>
+</div>
+
+<div id="modes">
+  <button data-s="active">活泼</button>
+  <button data-s="warm">温和</button>
+  <button data-s="normal" class="on">正常</button>
+  <button data-s="tired">疲惫</button>
+  <button data-s="down">消沉</button>
+</div>
+
+<div id="btns">
+  <button id="play">听她弹</button>
+  <button id="stop">停</button>
+</div>
+
+<script>
+/* ==========================================================
+   她弹给你听 —— Web Audio 合成，不用任何音频文件
+   四个参数由她的状态决定：调式 / BPM / 音符密度 / 句尾留白
+   ========================================================== */
+
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- 状态 → 音乐参数 ---------------- */
+const PRESET = {
+  active: { name:"活泼", scale:"major", bpm:116, density:0.78, oct:1, restBeats:0.5,
+            line:"……这个好听吗？",  bass:1.0 },
+  warm:   { name:"温和", scale:"major", bpm:84,  density:0.56, oct:0, restBeats:1.0,
+            line:"（弹完，手还放在琴键上）", bass:0.9 },
+  normal: { name:"正常", scale:"major", bpm:96,  density:0.60, oct:0, restBeats:0.8,
+            line:"弹完了。", bass:1.0 },
+  tired:  { name:"疲惫", scale:"minor", bpm:60,  density:0.34, oct:-1, restBeats:1.6,
+            line:"弹不动了。", bass:0.55 },
+  down:   { name:"消沉", scale:"minor", bpm:48,  density:0.20, oct:-1, restBeats:2.4,
+            line:"……就这样吧。", bass:0.28 },
+};
+
+const SCALE = {
+  major: [0, 2, 4, 5, 7, 9, 11],
+  minor: [0, 2, 3, 5, 7, 8, 10],
+};
+
+/* ---------------- 曲库（公有领域） ----------------
+   格式：[midi, 拍数]
+   midi 60 = C4
+   ------------------------------------------------ */
+const SONGS = {
+  "小星星": [
+    [60,1],[60,1],[67,1],[67,1],[69,1],[69,1],[67,2],
+    [65,1],[65,1],[64,1],[64,1],[62,1],[62,1],[60,2],
+    [67,1],[67,1],[65,1],[65,1],[64,1],[64,1],[62,2],
+    [67,1],[67,1],[65,1],[65,1],[64,1],[64,1],[62,2],
+    [60,1],[60,1],[67,1],[67,1],[69,1],[69,1],[67,2],
+    [65,1],[65,1],[64,1],[64,1],[62,1],[62,1],[60,2],
+  ],
+  "欢乐颂": [
+    [64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],
+    [60,1],[60,1],[62,1],[64,1],[64,1.5],[62,0.5],[62,2],
+    [64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],
+    [60,1],[60,1],[62,1],[64,1],[62,1.5],[60,0.5],[60,2],
+  ],
+  "卡农": [
+    [60,1],[67,1],[69,1],[64,1],[65,1],[60,1],[65,1],[67,1],
+    [59,1],[67,1],[69,1],[64,1],[65,1],[60,1],[65,1],[67,1],
+    [57,1],[65,1],[67,1],[62,1],[64,1],[59,1],[64,1],[65,1],
+  ],
+  "致爱丽丝": [
+    [76,0.5],[75,0.5],[76,0.5],[75,0.5],[76,0.5],[71,0.5],[74,0.5],[72,0.5],
+    [69,1],[60,0.5],[64,0.5],[69,0.5],[71,1],
+    [64,0.5],[68,0.5],[71,0.5],[72,1],
+    [64,0.5],[76,0.5],[75,0.5],[76,0.5],[75,0.5],[76,0.5],[71,0.5],[74,0.5],[72,0.5],
+    [69,1],[60,0.5],[64,0.5],[69,0.5],[71,1],
+    [64,0.5],[72,0.5],[71,0.5],[69,2],
+  ],
+  "小蜜蜂": [
+    [67,0.5],[64,0.5],[64,0.5],[65,0.5],[67,0.5],[67,0.5],[67,1],
+    [64,0.5],[64,0.5],[64,1],[67,0.5],[67,0.5],[67,1],
+    [64,0.5],[64,0.5],[65,0.5],[67,0.5],[67,0.5],[64,0.5],[64,1],
+  ],
+  "两只老虎": [
+    [60,1],[62,1],[64,1],[60,1],
+    [60,1],[62,1],[64,1],[60,1],
+    [64,1],[65,1],[67,2],
+    [64,1],[65,1],[67,2],
+    [67,0.5],[69,0.5],[67,0.5],[65,0.5],[64,1],[60,1],
+    [67,0.5],[69,0.5],[67,0.5],[65,0.5],[64,1],[60,1],
+    [60,1],[55,1],[60,2],
+    [60,1],[55,1],[60,2],
+  ],
+  "生日快乐": [
+    [67,0.75],[67,0.25],[69,1],[67,1],[72,1],[71,2],
+    [67,0.75],[67,0.25],[69,1],[67,1],[74,1],[72,2],
+    [67,0.75],[67,0.25],[79,1],[76,1],[72,1],[71,1],[69,1],
+    [77,0.75],[77,0.25],[76,1],[72,1],[74,1],[72,2],
+  ],
+  "绿袖子": [
+    [69,1],[74,1.5],[72,0.5],[71,1],[69,1],
+    [67,1],[65,1],[64,1],[62,1],
+    [60,1],[64,1],[67,1],[65,1],
+    [64,1],[62,1],[60,1],[59,1],[60,2],
+  ],
+  "平安夜": [
+    [67,1],[69,1.5],[67,0.5],[64,3],
+    [67,1],[69,1.5],[67,0.5],[64,3],
+    [72,1],[72,1.5],[71,0.5],[67,2],[65,1],
+    [64,1],[65,1.5],[67,0.5],[64,2],[62,2],
+    [69,1],[69,1.5],[71,0.5],[69,1],[67,1],[64,2],
+    [67,1],[64,1.5],[62,0.5],[60,3],
+  ],
+  "送别": [
+    [67,1],[64,1],[67,1],[72,2],[69,1],[72,1],[67,2],
+    [64,1],[62,1],[60,1],[62,2],[64,1],[62,1],[60,2],
+    [67,1],[64,1],[67,1],[72,2],[74,1],[72,1],[69,2],
+    [67,1],[64,1],[62,1],[60,4],
+  ],
+};
+
+let song = "";        // 空 = 即兴
+
+/* ================= 自己加的谱 =================
+   存 localStorage：{ 曲名: [[midi,拍], ...] }
+   ============================================ */
+const LS_KEY = "pn_scores";
+function myScores(){
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }
+  catch (e) { return {}; }
+}
+function saveScores(o){
+  try { localStorage.setItem(LS_KEY, JSON.stringify(o)); } catch (e) {}
+}
+
+/* 简谱 → [[midi, 拍]]
+   1-7 = do-si；0 = 休止；_ = 半拍；- = 延长；' 高八度；. 低八度 */
+const DEG = { "1":0, "2":2, "3":4, "4":5, "5":7, "6":9, "7":11 };
+function parseScore(txt){
+  const out = [];
+  let last = null;
+  // 去掉换行和 | ，用空格分词
+  const toks = String(txt || "").replace(/[|｜,，、\n\r]/g, " ").split(/\s+/).filter(Boolean);
+
+  for (let raw of toks){
+    // 一个 token 可能带后缀：5_  5'  5.  5-  5'_ ...
+    const m = raw.match(/^([0-7])([_'\-.]*)$/);
+    if (!m){
+      // 纯修饰符（单独的 - 或 _）
+      if (raw === "-" && last){ last[1] += 1; continue; }
+      if (raw === "_" && last){ last[1] *= 0.5; continue; }
+      continue;
+    }
+    const deg = m[1], suf = m[2] || "";
+    let dur = 1;
+    if (suf.includes("_")) dur = 0.5;
+    if (deg === "0"){
+      out.push([null, dur]);           // 休止
+      last = null;
+      continue;
+    }
+    let midi = 60 + (DEG[deg] !== undefined ? DEG[deg] : 0);
+    if (suf.includes("'")) midi += 12;
+    if (suf.includes(".")) midi -= 12;
+    if (suf.includes("-")) dur += 1;
+
+    const n = [midi, dur];
+    out.push(n);
+    last = n;
+  }
+  return out;
+}
+
+let cur = "normal";
+
+/* ---------------- 音频引擎 ---------------- */
+let AC = null, master = null, verb = null, playing = false, stopFlag = false;
+let timers = [];
+
+function ensureAudio(){
+  if (AC) return AC;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  AC = new Ctx();
+
+  master = AC.createGain();
+  master.gain.value = 0.0;
+
+  const lp = AC.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 3400;
+  lp.Q.value = 0.4;
+
+  verb = AC.createConvolver();
+  verb.buffer = makeImpulse(2.2, 2.4);
+
+  const wet = AC.createGain();
+  wet.gain.value = 0.30;
+  const dry = AC.createGain();
+  dry.gain.value = 0.82;
+
+  master.connect(lp);
+  lp.connect(dry); dry.connect(AC.destination);
+  lp.connect(verb); verb.connect(wet); wet.connect(AC.destination);
+
+  return AC;
+}
+
+/* 程序生成混响脉冲：噪声 × 指数衰减 */
+function makeImpulse(seconds, decay){
+  const rate = AC.sampleRate;
+  const len = Math.floor(rate * seconds);
+  const buf = AC.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++){
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++){
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  return buf;
+}
+
+
+/* ================= 加法钢琴 =================
+   真实钢琴的四个特征，都用得起：
+     ① 泛音    不是一根正弦，是八个泛音叠起来
+     ② 衰减    高泛音衰减更快（所以听起来先亮后暖）
+     ③ 刚性    f_n = n·f0·√(1+B·n²)，泛音略微偏高
+     ④ 敲击    起音那一瞬有 20 毫秒的木头声
+   ============================================ */
+
+const PARTIALS = [
+  // [泛音倍数, 振幅, 衰减快慢（越大掉得越快）]
+  [1,  1.000, 1.00],
+  [2,  0.520, 1.45],
+  [3,  0.300, 2.00],
+  [4,  0.180, 2.60],
+  [5,  0.115, 3.30],
+  [6,  0.072, 4.10],
+  [8,  0.042, 5.60],
+  [10, 0.026, 7.20],
+];
+const INHARM = 0.00035;          // 弦刚性系数
+
+let _hammerBuf = null;
+function hammerBuffer(){
+  if (_hammerBuf) return _hammerBuf;
+  const rate = AC.sampleRate;
+  const len = Math.floor(rate * 0.028);
+  const b = AC.createBuffer(1, len, rate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < len; i++){
+    const t = i / len;
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.2);
+  }
+  _hammerBuf = b;
+  return b;
+}
+
+/* 造一个钢琴音，返回 { nodes:[...], stop(t) } */
+function pianoVoice(midi, when, baseDur, vel){
+  const f0 = 440 * Math.pow(2, (midi - 69) / 12);
+  const nodes = [];
+  const gains = [];
+
+  for (const [n, amp, fast] of PARTIALS){
+    const f = n * f0 * Math.sqrt(1 + INHARM * n * n);
+    if (f > AC.sampleRate * 0.45) continue;      // 超过奈奎斯特就不发
+
+    const g = AC.createGain();
+    const peak = amp * vel * 0.34;
+    // 高泛音在力度大时更明显 → 弹得重，声音更亮
+    const bright = 1 + (vel - 0.25) * (n > 4 ? 1.6 : 0.5);
+
+    const tau = Math.max(0.06, baseDur / fast);
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak * bright, when + 0.004);
+    g.gain.exponentialRampToValueAtTime(peak * bright * 0.30, when + tau * 0.28);
+    g.gain.exponentialRampToValueAtTime(0.00005, when + tau);
+
+    const o = AC.createOscillator();
+    o.type = "sine";
+    o.frequency.value = f;
+    o.detune.value = (Math.random() - 0.5) * 3.2;   // 一点点不齐，像真弦
+
+    o.connect(g);
+    g.connect(master);
+    o.start(when);
+    o.stop(when + tau + 0.02);
+    nodes.push(o); gains.push(g);
+  }
+
+  // 敲击声
+  try {
+    const src = AC.createBufferSource();
+    src.buffer = hammerBuffer();
+    const bp = AC.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2600;
+    bp.Q.value = 0.9;
+    const hg = AC.createGain();
+    hg.gain.value = 0.05 * (0.4 + vel);
+    src.connect(bp); bp.connect(hg); hg.connect(master);
+    src.start(when);
+  } catch (e) {}
+
+  return {
+    nodes,
+    /* 松键：快速止音，像踏板松开 */
+    release(at){
+      const t = Math.max(at, AC.currentTime);
+      gains.forEach(g => {
+        try {
+          g.gain.cancelScheduledValues(t);
+          g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        } catch (e) {}
+      });
+      nodes.forEach(o => { try { o.stop(t + 0.22); } catch (e) {} });
+    },
+  };
+}
+
+/* 一个音：加法钢琴 */
+function note(midi, when, dur, vel){
+  if (!AC) return;
+  // 时值当基础衰减用；太短会让音发闷，给个下限
+  const base = Math.max(0.55, Math.min(dur * 2.4, 3.4));
+  pianoVoice(midi, when, base, vel);
+
+  // 圆跳一下 + 轨迹
+  const beatAt = (when - AC.currentTime) * 1000;
+  if (beatAt >= 0 && beatAt < 30000){
+    timers.push(setTimeout(() => {
+      const r = Math.min(1, (midi - 40) / 40);
+      $("orb").style.transform = "scale(" + (1.02 + r * 0.06) + ")";
+      $("orbCore").style.opacity = "1";
+      timers.push(setTimeout(() => {
+        $("orb").style.transform = "";
+        $("orbCore").style.opacity = ".5";
+      }, 110));
+
+      const i = document.createElement("i");
+      i.style.left = (60 + ((440 * Math.pow(2, (midi - 69) / 12)) % 7) * 5) + "%";
+      i.style.height = (8 + r * 34) + "px";
+      $("trail").appendChild(i);
+      setTimeout(() => i.remove(), 3400);
+    }, beatAt));
+  }
+}
+
+/* ---------------- 生成一段曲子 ---------------- */
+function compose(state){
+  const P = PRESET[state] || PRESET.normal;
+
+  // 自己加的谱优先
+  const mine = myScores()[song];
+  if (song && mine && mine.length){
+    const beat = 60 / Math.max(60, P.bpm);
+    const notes = [];
+    let tt = 0;
+    mine.forEach(([midi, dur]) => {
+      if (midi !== null && midi !== undefined){
+        notes.push({ midi: midi, at: tt, dur: dur * beat * 0.92,
+                     vel: 0.22 + Math.random() * 0.06 });
+      }
+      tt += dur * beat;
+    });
+    return { notes, total: tt + beat, preset: P };
+  }
+
+  // 选了一首具体的曲子 → 按曲谱弹
+  if (song && SONGS[song]){
+    const beat = 60 / Math.max(60, P.bpm);
+    const notes = [];
+    let t = 0;
+    SONGS[song].forEach(([midi, dur]) => {
+      notes.push({ midi: midi, at: t, dur: dur * beat * 0.92,
+                   vel: 0.22 + Math.random() * 0.06 });
+      t += dur * beat;
+    });
+    return { notes, total: t + beat, preset: P };
+  }
+  const sc = SCALE[P.scale];
+  const beat = 60 / P.bpm;
+  const base = 57 + P.oct * 12;          // A3 附近
+
+  // 一个 4 音动机
+  const motif = [];
+  let idx = Math.floor(sc.length / 2);
+  for (let i = 0; i < 4; i++){
+    idx += [-2, 1, -1, 2][Math.floor(Math.random() * 4)];
+    idx = Math.max(0, Math.min(sc.length - 1, idx));
+    motif.push(base + 12 + sc[idx]);
+  }
+
+  const notes = [];
+  const phrases = [0, 0, 1, 0];          // A A B A
+
+  for (let ph = 0; ph < 4; ph++){
+    const t0 = ph * 4 * beat;
+    const B = phrases[ph] === 1;
+
+    // 右手
+    for (let b = 0; b < 4; b++){
+      if (b === 3 && Math.random() < P.restBeats / 3) continue;
+      if (Math.random() > P.density) continue;
+
+      const m = B ? motif.slice().reverse() : motif;
+      let n = m[b % m.length];
+      if (Math.random() < 0.22) n += 12;
+      if (Math.random() < 0.18) n -= 2;
+
+      notes.push({
+        midi: n,
+        at: t0 + b * beat + (Math.random() * 0.02),
+        dur: beat * (b === 0 ? 1.15 : 0.85),
+        vel: 0.20 + Math.random() * 0.10,
+      });
+    }
+
+    // 左手：根音 + 五度
+    if (P.bass > 0.3){
+      const root = base + sc[0] + (ph < 2 ? 0 : -2);
+      notes.push({ midi: root, at: t0, dur: beat * 1.6, vel: 0.14 * P.bass });
+      if (Math.random() < P.bass * 0.7){
+        notes.push({ midi: root + 7, at: t0 + beat * 2, dur: beat * 1.2, vel: 0.11 * P.bass });
+      }
+    }
+  }
+
+  return { notes, total: 4 * 4 * beat + P.restBeats * beat * 0.5, preset: P };
+}
+
+/* ---------------- 播放 ---------------- */
+async function play(){
+  if (playing) return;
+  if (!ensureAudio()){
+    say("这个浏览器不支持 Web Audio");
+    return;
+  }
+  if (AC.state === "suspended") await AC.resume();
+
+  const P = PRESET[cur] || PRESET.normal;
+  const { notes, total } = compose(cur);
+
+  playing = true; stopFlag = false;
+  $("play").disabled = true;
+  $("line").classList.remove("on");
+
+  master.gain.cancelScheduledValues(AC.currentTime);
+  master.gain.setValueAtTime(0.0001, AC.currentTime);
+  master.gain.linearRampToValueAtTime(1.0, AC.currentTime + 0.5);
+
+  const t0 = AC.currentTime + 0.12;
+  notes.forEach(n => note(n.midi, t0 + n.at, n.dur, n.vel));
+
+  // 弹完
+  timers.push(setTimeout(() => {
+    if (stopFlag) return;
+    master.gain.linearRampToValueAtTime(0.0001, AC.currentTime + 1.2);
+    say(P.line);
+    playing = false;
+    $("play").disabled = false;
+  }, (total + 1.2) * 1000));
+}
+
+function stop(){
+  if (!AC || !playing) return;
+  stopFlag = true;
+  master.gain.cancelScheduledValues(AC.currentTime);
+  master.gain.setValueAtTime(master.gain.value, AC.currentTime);
+  master.gain.linearRampToValueAtTime(0.0001, AC.currentTime + 0.25);
+  timers.forEach(clearTimeout); timers = [];
+  setTimeout(() => { $("trail").innerHTML = ""; }, 300);
+  playing = false;
+  $("play").disabled = false;
+  say("……");
+}
+
+function say(t){
+  $("line").textContent = t;
+  $("line").classList.add("on");
+}
+
+/* ---------------- 事件 ---------------- */
+/* ---- 加谱 ---- */
+$("addClose").addEventListener("click", () => $("addPanel").classList.remove("on"));
+
+$("addSave").addEventListener("click", () => {
+  const name = $("addName").value.trim();
+  const txt = $("addScore").value;
+  if (!name){ $("addMsg").textContent = "先给个曲名"; return; }
+  const arr = parseScore(txt);
+  const real = arr.filter(x => x[0] !== null).length;
+  if (real < 3){ $("addMsg").textContent = "谱子读不出来，检查一下格式"; return; }
+
+  const all = myScores();
+  all[name] = arr;
+  saveScores(all);
+
+  song = name;
+  $("addMsg").textContent = "加好了：读得到 " + real + " 个音";
+  $("addName").value = "";
+  $("addScore").value = "";
+  rebuildSongBar();
+  $("play").textContent = "弹《" + name + "》";
+  setTimeout(() => { $("addPanel").classList.remove("on"); $("addMsg").textContent = ""; }, 900);
+});
+
+$("play").addEventListener("click", play);
+$("stop").addEventListener("click", stop);
+
+$("modes").querySelectorAll("button").forEach(b => {
+  b.addEventListener("click", () => {
+    cur = b.dataset.s;
+    $("modes").querySelectorAll("button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    $("line").classList.remove("on");
+    $("play").textContent = song ? ("弹《" + song + "》") : ("听她弹 · " + PRESET[cur].name);
+  });
+});
+$("play").textContent = "听她弹 · 正常";
+
+/* 曲目下拉 */
+function rebuildSongBar(){
+  const sel = $("songSel");
+  const mine = Object.keys(myScores());
+  const names = ["即兴", ...Object.keys(SONGS), ...mine];
+
+  sel.innerHTML = "";
+  names.forEach(n => {
+    const o = document.createElement("option");
+    o.value = (n === "即兴") ? "" : n;
+    o.textContent = (n === "即兴") ? "即兴（看她当时什么状态）" : n;
+    if (o.value === song) o.selected = true;
+    sel.appendChild(o);
+  });
+  if (!names.some(n => (n === "即兴" ? "" : n) === song)) sel.value = "";
+}
+rebuildSongBar();
+
+$("songSel").addEventListener("change", () => {
+  song = $("songSel").value;
+  $("line").classList.remove("on");
+  $("play").textContent = song ? ("弹《" + song + "》") : ("听她弹 · " + PRESET[cur].name);
+});
+
+$("addBtn").addEventListener("click", () => {
+  $("addPanel").classList.toggle("on");
+  if ($("addPanel").classList.contains("on")){
+    setTimeout(() => $("addPanel").scrollIntoView({block:"nearest", behavior:"smooth"}), 60);
+  }
+});
+
+// 切到后台就停
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stop();
+});
+</script>
+</body>
+</html>

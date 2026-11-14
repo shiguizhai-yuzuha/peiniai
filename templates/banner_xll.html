@@ -1,0 +1,99 @@
+<div class="xll-banner">
+  <div class="xll-top">✦ ✧ ✦ ✧ ✦</div>
+  <div class="xll-line1">茜 特 菈 莉</div>
+  <div class="xll-line2">天 下 第 一</div>
+  <div class="xll-sub">奶 奶 永 不 退 休</div>
+  <div class="xll-tags">火水不断 · 夜风让路 · 星象为我改判</div>
+  <div class="xll-bottom">!! &nbsp; 谁 说 不 服 &nbsp; !!</div>
+</div>
+
+<style>
+@keyframes xll-breath {
+  0%, 100% { text-shadow: 0 0 6px #ffd84d, 0 0 18px #ff9d00, 0 0 34px #ff5e00; }
+  50%      { text-shadow: 0 0 10px #fff3a0, 0 0 30px #ffb300, 0 0 60px #ff3d00; }
+}
+@keyframes xll-tilt {
+  0%, 100% { transform: rotate(-2.2deg) scale(1); }
+  50%      { transform: rotate(1.6deg) scale(1.03); }
+}
+@keyframes xll-flicker {
+  0%, 97%, 100% { opacity: 1; }
+  98%           { opacity: .35; }
+  99%           { opacity: .9; }
+}
+
+.xll-banner {
+  position: relative;
+  margin: 6px auto 22px;
+  padding: 18px 16px 14px;
+  max-width: 640px;
+  text-align: center;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,140,0,.20), transparent 62%),
+    linear-gradient(180deg, rgba(30,10,50,.78), rgba(12,6,22,.88));
+  border: 1px solid rgba(255,175,40,.34);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset,
+              0 14px 40px rgba(0,0,0,.45);
+  animation: xll-tilt 5.5s ease-in-out infinite;
+  overflow: hidden;
+}
+.xll-banner::before {
+  content: "";
+  position: absolute; inset: -40%;
+  background: conic-gradient(from 0deg, transparent 0 12%, rgba(255,150,0,.16) 14% 16%,
+              transparent 18% 32%, rgba(255,60,60,.13) 34% 36%, transparent 38%);
+  animation: xll-spin 14s linear infinite;
+  pointer-events: none;
+}
+@keyframes xll-spin { to { transform: rotate(360deg); } }
+
+.xll-top {
+  font-size: 13px; letter-spacing: .5em;
+  color: #ffc94d; opacity: .85; margin-bottom: 4px;
+  animation: xll-flicker 4s linear infinite;
+}
+.xll-line1 {
+  font-size: 34px; font-weight: 900; letter-spacing: .10em;
+  color: #fff;
+  -webkit-text-stroke: 1px #b34700;
+  animation: xll-breath 2.6s ease-in-out infinite;
+  line-height: 1.25;
+}
+.xll-line2 {
+  font-size: 40px; font-weight: 900; letter-spacing: .16em;
+  color: #ffe98a;
+  -webkit-text-stroke: 1.5px #ff4d00;
+  animation: xll-breath 2.6s ease-in-out infinite .3s;
+  line-height: 1.2;
+}
+.xll-sub {
+  margin-top: 10px; display: inline-block;
+  padding: 4px 14px; border-radius: 999px;
+  font-size: 14px; letter-spacing: .30em; font-weight: 700;
+  color: #fff; background: rgba(190,20,90,.55);
+  border: 1px solid rgba(255,140,190,.55);
+  text-shadow: 0 1px 4px rgba(0,0,0,.85);
+}
+.xll-tags {
+  margin-top: 10px; display: inline-block;
+  padding: 4px 14px; border-radius: 999px;
+  font-size: 12px; letter-spacing: .10em; font-weight: 600;
+  color: #fff; background: rgba(10,60,90,.62);
+  border: 1px solid rgba(120,225,255,.55);
+  text-shadow: 0 1px 4px rgba(0,0,0,.85);
+}
+.xll-bottom {
+  margin-top: 10px; font-size: 16px; font-weight: 900; letter-spacing: .22em;
+  color: #fff;
+  text-shadow: 0 0 8px #ff2a2a, 0 0 18px #ff2a2a, 0 1px 4px #000;
+  animation: xll-flicker 3.2s linear infinite .8s;
+}
+
+@media (max-width: 560px) {
+  .xll-line1 { font-size: 25px; }
+  .xll-line2 { font-size: 29px; }
+  .xll-sub, .xll-tags { letter-spacing: .18em; }
+  .xll-banner { animation-duration: 6.5s; }
+}
+</style>

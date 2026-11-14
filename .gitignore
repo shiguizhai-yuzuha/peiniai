@@ -1,0 +1,52 @@
+# 数据库：有真实用户的对话，绝不能进仓库
+*.db
+*.db-shm
+*.db-wal
+*.db.bak*
+love_bot.db*
+
+# 密钥与配置
+.env
+.env.*
+config.local.py
+*.key
+*.pem
+
+# 运行时产物
+__pycache__/
+*.py[cod]
+*.log
+logs/
+*.pid
+tmp/
+temp/
+_temp/
+
+# 依赖与虚拟环境
+venv/
+.venv/
+node_modules/
+
+# 手工存档（老办法，留着但不进 git）
+博物馆/
+
+# 大件素材：用不着版本控制
+运营/
+监控/
+keepsakes/
+_pinyi/
+_bgm/
+
+# 导出物与截图
+开发日志/截图*.png
+开发日志/*.pdf
+导出*/
+*.zip
+*.7z
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini

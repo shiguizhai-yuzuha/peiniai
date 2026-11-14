@@ -1,0 +1,182 @@
+# core/tone.py
+"""语气引擎。
+
+把四个变量（好感 / 信任 / 情绪 / 精力）合成一句"她此刻该怎么说话"。
+
+为什么不用加权求和：
+    向量会算出平均值，角色永远温吞。
+    真人不是连续的——她是"此刻烦躁"或"此刻温和"，
+    不存在 0.37 个人格。
+
+怎么用：
+    t = decide(intimacy=62, trust=45, mood=-0.6, energy=0.4)
+    t["state"]   -> "消沉"
+    t["mode"]    -> "亲近|消沉|放松"      ← 台词变体用的唯一键
+    t["prompt"]  -> 一段可以直接塞进 system 的话
+
+这是纯函数，不读库、不写库、不联网。
+高频调用也没负担（几十微秒）。
+"""
+
+# ─────────────────────────── 分档 ───────────────────────────
+
+def _clamp(v, lo, hi):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return lo
+    return max(lo, min(hi, v))
+
+
+def stage_of(intimacy) -> str:
+    """好感 → 关系阶段。"""
+    v = _clamp(intimacy, 0, 100)
+    if v >= 86:
+        return "恋人"
+    if v >= 61:
+        return "亲近"
+    if v >= 31:
+        return "熟悉"
+    return "陌生"
+
+
+def trust_band(trust) -> str:
+    """信任 → 敞开程度。它不改基调，只改"她说多深"。"""
+    v = _clamp(trust, 0, 100)
+    if v >= 71:
+        return "交底"
+    if v >= 41:
+        return "放松"
+    return "试探"
+
+
+def state_of(mood, energy) -> str:
+    """情绪 + 精力 → 此刻状态。
+
+    这两个必须合并看，单独看会打架：
+      情绪低 + 有劲 = 烦躁（能发火）
+      情绪低 + 没劲 = 消沉（连火都懒得发）
+    """
+    m = _clamp(mood, -1, 1)
+    e = _clamp(energy, 0, 1)
+    if m > 0.4:
+        return "活泼" if e >= 0.7 else "温和"
+    if m < -0.4:
+        return "烦躁" if e >= 0.7 else "消沉"
+    return "疲惫" if e < 0.3 else "正常"
+
+
+# ─────────────────────────── 写作参数 ───────────────────────────
+# 这张表比台词本身重要：它决定"她说话的形状"。
+
+STATE_STYLE = {
+    "活泼": {"句长": "短", "语气词": "多用（呀 / 啦 / 诶）", "动作": "多写括号动作", "提问": "会主动问", "省略号": "少"},
+    "温和": {"句长": "中等", "语气词": "偶尔用", "动作": "偶尔带一个", "提问": "会问，但不追", "省略号": "偶尔"},
+    "正常": {"句长": "中等", "语气词": "少", "动作": "少", "提问": "正常", "省略号": "少"},
+    "疲惫": {"句长": "很短", "语气词": "几乎不用", "动作": "最多一个", "提问": "不主动问", "省略号": "多"},
+    "烦躁": {"句长": "短", "语气词": "少，但带刺", "动作": "有（摔、转身、别开脸）", "提问": "会质问", "省略号": "中等"},
+    "消沉": {"句长": "极短", "语气词": "完全不用", "动作": "很少", "提问": "一句都不主动问", "省略号": "很多"},
+}
+
+STATE_DESC = {
+    "活泼": "心情不错，精力也足。你会主动开口、会逗他，句子轻快。",
+    "温和": "心情不错，但不亢奋。语速慢一点，比平时软。",
+    "正常": "平常状态。没有特别高兴，也没有不高兴。",
+    "疲惫": "累了。不想多说，能一个字就不用两个字。",
+    "烦躁": "心里不痛快，而且还有力气。容易呛人，但不会真的伤他。",
+    "消沉": "心里不痛快，连发火的力气都没有。话很少，很多省略号。",
+}
+
+STAGE_DESC = {
+    "陌生": "你和他还不太熟。客气、有分寸，但不是冷——你会接他的话，也会反问他一句，只是不往深了说。",
+    "熟悉": "你们认识一段时间了。可以打趣、可以开玩笑，但还不至于交心。",
+    "亲近": "你们关系很近。你会主动找他，会关心他今天怎么样。",
+    "恋人": "你们在一起了。你不藏话，可以黏、可以直接说想他。",
+}
+
+# 信任只在这三种组合下改表现（低落的时候才暴露脆弱）
+TRUST_OPEN = {
+    "试探": "你还没到掏心窝子的程度。他问起你，你会答一句真的，然后打住，不往深里讲。",
+    "放松": "他认真问的时候，你会说一点，但不会说完。",
+    "交底": "你会主动说出来。哪怕不好听，你也愿意让他知道。",
+}
+
+
+def _openness(stage: str, state: str, trust: str) -> str:
+    """信任只在"她正在难受"的时候起作用。"""
+    if state in ("消沉", "疲惫"):
+        return TRUST_OPEN[trust]
+    if state == "烦躁":
+        if trust == "交底":
+            return "你呛完之后会补一句，让他知道你不是针对他。"
+        if trust == "试探":
+            return "你呛完就冷着，不解释。"
+        return "你呛完会停一下，但没有道歉。"
+    return ""
+
+
+def decide(intimacy, trust, mood, energy, *, stage=None) -> dict:
+    """四个变量 → 一个语气包。
+
+    参数：
+        intimacy  好感 0-100
+        trust     信任 0-100
+        mood      情绪 -1 ~ 1
+        energy    精力 0 ~ 1
+        stage     可选，直接指定阶段（比如剧情强制"恋人"）
+
+    返回 dict：
+        stage / state / trust / mode / 写作参数 / prompt
+    """
+    st = stage or stage_of(intimacy)
+    tb = trust_band(trust)
+    ss = state_of(mood, energy)
+    style = STATE_STYLE[ss]
+
+    lines = [
+        "## 你此刻的状态",
+        f"你们的关系：{st}。{STAGE_DESC[st]}",
+        f"你现在：{ss}。{STATE_DESC[ss]}",
+    ]
+    extra = _openness(st, ss, tb)
+    if extra:
+        lines.append(extra)
+
+    lines.append(
+        "说话方式："
+        f"句子{style['句长']}；语气词{style['语气词']}；"
+        f"{style['动作']}；{style['提问']}；省略号{style['省略号']}。"
+    )
+    lines.append("不要解释你在扮演，也不要提“设定”“参数”这类词。")
+
+    return {
+        "stage": st,
+        "state": ss,
+        "trust": tb,
+        "mode": f"{st}|{ss}|{tb}",          # 台词变体用这个当键
+        "style": style,
+        "prompt": "\n".join(lines),
+    }
+
+
+# ─────────────────────────── 派生量 ───────────────────────────
+
+def energy_by_hour(hour: int, base: float = 1.0) -> float:
+    """按时间估精力：深夜低，清晨回升。
+
+    这是"她"的精力，不是用户的。凌晨她该困，白天她该有劲。
+    """
+    h = int(hour) % 24
+    if 0 <= h < 6:
+        return _clamp(base * 0.15, 0, 1)
+    if 6 <= h < 9:
+        return _clamp(base * 0.55, 0, 1)
+    if 9 <= h < 13:
+        return _clamp(base * 0.9, 0, 1)
+    if 13 <= h < 15:
+        return _clamp(base * 0.7, 0, 1)
+    if 15 <= h < 21:
+        return _clamp(base * 0.85, 0, 1)
+    if 21 <= h < 24:
+        return _clamp(base * 0.45, 0, 1)
+    return _clamp(base, 0, 1)

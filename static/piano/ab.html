@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>听一下</title>
+<style>
+:root{--ink:#f2ece4;--dim:rgba(242,236,228,.6);--soft:rgba(242,236,228,.32);
+--line:rgba(255,255,255,.1);--warm:#ffb98a;--m:12px;--full:999px;
+--e:cubic-bezier(.2,.7,.2,1)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:linear-gradient(180deg,#141a28,#0a0d13);background-attachment:fixed;
+color:var(--ink);font-family:"Songti SC",-apple-system,"PingFang SC",serif;
+display:flex;flex-direction:column;align-items:center;justify-content:center;
+padding:24px;gap:22px}
+h1{font-size:19px;font-weight:300;letter-spacing:.2em;text-align:center}
+.s{font-size:12.5px;color:var(--soft);letter-spacing:.1em;text-align:center;line-height:1.9}
+.row{display:flex;gap:12px;width:min(420px,100%)}
+button{
+  flex:1;padding:1.15em .6em;border-radius:16px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);
+  font-family:inherit;font-size:15px;letter-spacing:.14em;
+  transition:.24s var(--e);
+}
+button:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.28)}
+button:active{transform:scale(.97)}
+button.on{background:linear-gradient(135deg,#ffb98a,#ff9a6a);color:#241208;border-color:transparent}
+#reveal{padding:.7em 1.4em;border-radius:var(--full);background:transparent;
+border:1px solid var(--line);color:var(--soft);font-size:12px;letter-spacing:.16em;
+cursor:pointer;font-family:inherit}
+#out{font-size:13.5px;letter-spacing:.08em;color:var(--warm);min-height:2.6em;
+text-align:center;line-height:1.9;max-width:420px}
+.tag{font-size:11px;color:var(--soft);letter-spacing:.1em}
+</style>
+</head>
+<body>
+
+<h1>两个音色，同一段旋律</h1>
+<div class="s">点一下听，然后告诉我哪个好听。<br>不用说出为什么，选一个就行。</div>
+
+<div class="row">
+  <button id="a">听 ①</button>
+  <button id="b">听 ②</button>
+</div>
+
+<div class="row">
+  <button id="pick" disabled>选好了</button>
+</div>
+
+<div id="out"></div>
+<button id="reveal">揭晓</button>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let AC = null, master = null;
+
+const SEQ = [60,60,67,67,69,69,67,0, 65,65,64,64,62,62,60,0];
+const DUR = [1,1,1,1,1,1,1.6,0.4, 1,1,1,1,1,1,2,0.6];
+
+// 随机安排：① 是哪个音色，不告诉他
+const flip = Math.random() < 0.5;
+const ORDER = flip ? ["old", "new"] : ["new", "old"];
+let picked = null, revealed = false;
+
+function init(){
+  if (AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain();
+  master.gain.value = 0.9;
+  const lp = AC.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.value = 4200; lp.Q.value = 0.5;
+  const verb = AC.createConvolver();
+  verb.buffer = imp(1.9, 2.6);
+  const wet = AC.createGain(); wet.gain.value = 0.26;
+  const dry = AC.createGain(); dry.gain.value = 0.85;
+  master.connect(lp);
+  lp.connect(dry); dry.connect(AC.destination);
+  lp.connect(verb); verb.connect(wet); wet.connect(AC.destination);
+}
+
+function imp(sec, decay){
+  const rate = AC.sampleRate, len = Math.floor(rate*sec);
+  const b = AC.createBuffer(2, len, rate);
+  for (let c=0;c<2;c++){
+    const d = b.getChannelData(c);
+    for (let i=0;i<len;i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/len, decay);
+  }
+  return b;
+}
+
+/* ---- A：旧音色（正弦 + 三角） ---- */
+function oldVoice(midi, when, dur, vel){
+  const f = 440 * Math.pow(2, (midi-69)/12);
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0, when);
+  g.gain.linearRampToValueAtTime(vel, when + 0.012);
+  g.gain.exponentialRampToValueAtTime(vel*0.42, when + Math.min(0.18, dur*0.5));
+  g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  const o1 = AC.createOscillator(); o1.type="sine"; o1.frequency.value=f;
+  const o2 = AC.createOscillator(); o2.type="triangle"; o2.frequency.value=f; o2.detune.value=5;
+  const g2 = AC.createGain(); g2.gain.value = 0.22;
+  o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+  o1.start(when); o2.start(when);
+  o1.stop(when+dur+0.05); o2.stop(when+dur+0.05);
+}
+
+/* ---- B：加法钢琴（8 泛音 + 敲击 + 刚性） ---- */
+const PARTS = [[1,1,1],[2,.52,1.45],[3,.30,2.0],[4,.18,2.6],
+               [5,.115,3.3],[6,.072,4.1],[8,.042,5.6],[10,.026,7.2]];
+let _hb = null;
+function hb(){
+  if (_hb) return _hb;
+  const rate = AC.sampleRate, len = Math.floor(rate*0.028);
+  const b = AC.createBuffer(1, len, rate), d = b.getChannelData(0);
+  for (let i=0;i<len;i++){ const t=i/len; d[i]=(Math.random()*2-1)*Math.pow(1-t,3.2); }
+  _hb = b; return b;
+}
+function newVoice(midi, when, dur, vel){
+  const f0 = 440 * Math.pow(2, (midi-69)/12);
+  const base = Math.max(0.55, Math.min(dur*2.4, 3.4));
+  for (const [n, amp, fast] of PARTS){
+    const f = n*f0*Math.sqrt(1+0.00035*n*n);
+    if (f > AC.sampleRate*0.45) continue;
+    const g = AC.createGain();
+    const peak = amp*vel*0.34;
+    const bright = 1 + (vel-0.25)*(n>4?1.6:0.5);
+    const tau = Math.max(0.06, base/fast);
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak*bright, when+0.004);
+    g.gain.exponentialRampToValueAtTime(peak*bright*0.30, when+tau*0.28);
+    g.gain.exponentialRampToValueAtTime(0.00005, when+tau);
+    const o = AC.createOscillator(); o.type="sine"; o.frequency.value=f;
+    o.detune.value = (Math.random()-0.5)*3.2;
+    o.connect(g); g.connect(master);
+    o.start(when); o.stop(when+tau+0.02);
+  }
+  try {
+    const s = AC.createBufferSource(); s.buffer = hb();
+    const bp = AC.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=2600; bp.Q.value=0.9;
+    const hg = AC.createGain(); hg.gain.value = 0.05*(0.4+vel);
+    s.connect(bp); bp.connect(hg); hg.connect(master);
+    s.start(when);
+  } catch(e){}
+}
+
+async function play(which){
+  init();
+  if (AC.state === "suspended") await AC.resume();
+  const t0 = AC.currentTime + 0.08;
+  let t = 0;
+  const beat = 0.42;
+  for (let i=0;i<SEQ.length;i++){
+    const midi = SEQ[i];
+    if (midi){
+      if (which === "old") oldVoice(midi, t0+t, DUR[i]*beat, 0.28);
+      else newVoice(midi, t0+t, DUR[i]*beat, 0.28);
+    }
+    t += DUR[i]*beat;
+  }
+}
+
+$("a").addEventListener("click", async () => { await play(ORDER[0]); });
+$("b").addEventListener("click", async () => { await play(ORDER[1]); });
+$("a").addEventListener("click", () => { $("a").classList.add("on"); setTimeout(()=>$("a").classList.remove("on"), 900); });
+$("b").addEventListener("click", () => { $("b").classList.add("on"); setTimeout(()=>$("b").classList.remove("on"), 900); });
+
+$("a").addEventListener("click", () => { if (!revealed){ picked="①"; $("pick").disabled=false; $("pick").textContent="我选 ①"; }});
+$("b").addEventListener("click", () => { if (!revealed){ picked="②"; $("pick").disabled=false; $("pick").textContent="我选 ②"; }});
+
+$("pick").addEventListener("click", () => {
+  if (!picked) return;
+  const idx = picked === "①" ? 0 : 1;
+  const chosen = ORDER[idx];
+  $("out").textContent = chosen === "new"
+    ? "你选的是新的（加法钢琴）"
+    : "你选的是旧的（正弦 + 三角）";
+  $("reveal").disabled = false;
+});
+
+$("reveal").addEventListener("click", () => {
+  revealed = true;
+  $("out").innerHTML =
+    "① = " + (ORDER[0] === "new" ? "新音色（加法钢琴）" : "旧音色（正弦+三角）") +
+    "<br>② = " + (ORDER[1] === "new" ? "新音色（加法钢琴）" : "旧音色（正弦+三角）");
+});
+</script>
+</body>
+</html>

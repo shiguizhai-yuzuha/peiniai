@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>陪你AI</title>
+<style>
+:root{
+  --ink:#f6f1ea; --dim:rgba(246,241,234,.62); --soft:rgba(246,241,234,.38);
+  --warm:#ffb98a; --warm-hi:#ffd9b8;
+  --r-s:8px; --r-m:12px; --r-l:16px; --r-full:999px;
+  --line:rgba(255,255,255,.10); --line-hi:rgba(255,255,255,.18);
+  --glass:rgba(255,255,255,.05); --glass-hi:rgba(255,255,255,.10);
+  --e:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%; height:100dvh}
+body{
+  background:
+    radial-gradient(120% 80% at 50% -6%, rgba(255,172,112,.20) 0%, rgba(180,110,100,.10) 26%, transparent 64%),
+    linear-gradient(180deg,#171d2e 0%,#111827 40%,#0a0e16 100%);
+  color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",-apple-system,"PingFang SC","Microsoft YaHei",serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+
+/* ================= 背景层 ================= */
+#bg{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-size:cover; background-position:center;
+  opacity:0; transition:opacity .9s var(--e);
+}
+#bg.on{opacity:1}
+#bgveil{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255,172,112,.14) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(8,11,18,.62) 0%, rgba(8,11,18,.72) 55%, rgba(6,8,13,.88) 100%);
+}
+
+/* ================= 启动警告 ================= */
+#notice{
+  position:fixed; inset:0; z-index:150; display:none;
+  overflow-y:auto; padding:5vh 20px 6vh;
+  background:transparent;      /* 让底图透上来，白卡浮在上面 */
+}
+#notice.on{display:block}
+#notice .nbox{
+  max-width:680px; margin:0 auto; padding:34px 40px;
+  background:rgba(252,252,253,.97); border-radius:18px;
+  border:1px solid rgba(0,0,0,.08); color:#1f2328;
+  font-size:16px; line-height:2.0;
+  box-shadow:0 8px 40px rgba(0,0,0,.28);
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+#notice .nbox p{margin:0 0 14px}
+#notice .nbox .nbtn{
+  display:block; width:100%; margin-top:10px; padding:.95em;
+  border:none; border-radius:12px; cursor:pointer;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  font-family:inherit; font-size:16px; letter-spacing:.2em;
+  transition:transform .14s var(--e), filter .26s var(--e);
+}
+#notice .nbox .nbtn:hover{filter:brightness(1.06)}
+#notice .nbox .nbtn:active{transform:scale(.98)}
+@media (max-width:480px){
+  #notice{padding:3vh 12px 5vh}
+  #notice .nbox{padding:24px 20px; font-size:15px; line-height:1.95}
+}
+
+/* ================= 加载遮罩 ================= */
+#loader{
+  position:fixed; inset:0; z-index:200; display:none;
+  align-items:center; justify-content:center; flex-direction:column; gap:22px;
+  background:linear-gradient(180deg,#12182a 0%,#0a0e16 100%);
+}
+#loader.on{display:flex}
+#loader .lt{font-size:13px; letter-spacing:.36em; text-indent:.36em; color:var(--dim)}
+#loader .lb{width:min(240px,60vw); height:2px; background:rgba(255,255,255,.08); border-radius:var(--r-full); overflow:hidden}
+#loader .lb i{display:block; height:100%; width:0;
+  background:linear-gradient(90deg,rgba(255,176,130,0),rgba(255,206,168,.95),rgba(255,176,130,.3));
+  box-shadow:0 0 16px rgba(255,190,150,.7); transition:width .3s ease}
+#loader .lp{font-size:10.5px; letter-spacing:.24em; color:var(--soft)}
+
+/* ================= 登录 ================= */
+#login{
+  position:fixed; inset:0; z-index:100;
+  background:transparent;
+  display:flex; align-items:center; justify-content:center; flex-direction:column;
+  padding:24px;
+}
+.logo{
+  font-size:clamp(22px,5vw,30px); letter-spacing:.4em; text-indent:.4em;
+  color:#fff; margin-bottom:.6em;
+  text-shadow:0 0 40px rgba(255,190,150,.35);
+}
+.slogan{font-size:12px; letter-spacing:.28em; color:var(--soft); margin-bottom:2.8em; text-align:center}
+.lcard{
+  width:min(340px,100%); padding:26px 22px;
+  border-radius:var(--r-l);
+  background:rgba(255,255,255,.045);
+  border:1px solid var(--line);
+  backdrop-filter:blur(16px);
+  box-shadow:0 24px 60px rgba(0,0,0,.45);
+}
+.lcard input{
+  width:100%; padding:.85em 1em; margin-bottom:12px;
+  border-radius:var(--r-m); border:1px solid var(--line);
+  background:rgba(255,255,255,.04); color:var(--ink);
+  font-family:inherit; font-size:16px; outline:none;
+  transition:border-color .26s var(--e), box-shadow .26s var(--e);
+}
+.lcard input:focus{border-color:rgba(255,185,138,.55); box-shadow:0 0 0 3px rgba(255,185,138,.14)}
+.lcard input::placeholder{color:rgba(255,255,255,.28)}
+.lcard button{
+  width:100%; padding:.9em; border:none; border-radius:var(--r-m); cursor:pointer;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  font-family:inherit; font-size:15px; letter-spacing:.2em;
+  transition:transform .14s var(--e), filter .26s var(--e), box-shadow .26s var(--e);
+  box-shadow:0 6px 22px rgba(255,150,100,.28);
+}
+.lcard button:hover{filter:brightness(1.06); box-shadow:0 8px 28px rgba(255,150,100,.38)}
+.lcard button:active{transform:scale(.97); box-shadow:none}
+#lmsg{margin-top:12px; height:1.2em; font-size:12px; letter-spacing:.12em; color:rgba(255,150,130,.85)}
+.links{margin-top:2.2em; display:flex; gap:10px}
+.links a{
+  padding:.6em 1.2em; border-radius:var(--r-full); text-decoration:none;
+  font-size:11.5px; letter-spacing:.2em; color:var(--dim);
+  border:1px solid var(--line); background:var(--glass);
+  transition:.26s var(--e);
+}
+.links a:hover{background:var(--glass-hi); border-color:var(--line-hi); color:var(--ink)}
+
+.lcard .tabs{display:flex; gap:6px; margin-bottom:16px}
+.lcard .tab{
+  flex:1; padding:.55em .4em; border-radius:var(--r-s); cursor:pointer;
+  background:transparent; border:1px solid var(--line);
+  color:var(--soft); font-family:inherit; font-size:12px; letter-spacing:.12em;
+  transition:.24s var(--e);
+}
+.lcard .tab:hover{color:var(--ink); border-color:var(--line-hi)}
+.lcard .tab.on{color:#241208; background:linear-gradient(135deg,#ffb98a,#ff9a6a);
+  border-color:transparent}
+.lcard .pane{display:none}
+.lcard .pane.on{display:block}
+.gintro{font-size:12.5px; line-height:1.9; color:var(--dim); margin-bottom:14px}
+
+/* 设置面板 */
+#set{
+  position:fixed; inset:0; z-index:185; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  background:rgba(6,9,15,.72); backdrop-filter:blur(6px);
+}
+#set.on{display:flex}
+#set .sbox{
+  width:min(430px,100%); max-height:84vh; overflow-y:auto;
+  background:rgba(20,26,40,.97); border:1px solid var(--line-hi);
+  border-radius:var(--r-l); padding:22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);
+}
+#set h3{font-size:13px; font-weight:400; letter-spacing:.24em; color:var(--ink); margin-bottom:16px}
+#set .fld{margin-bottom:14px}
+#set label{display:block; font-size:10.5px; letter-spacing:.2em; color:var(--soft); margin-bottom:6px}
+#set input[type=text], #set input[type=password]{
+  width:100%; padding:.72em .9em; border-radius:var(--r-s);
+  border:1px solid var(--line); background:rgba(255,255,255,.04);
+  color:var(--ink); font-family:inherit; font-size:15px; outline:none;
+}
+#set input:focus{border-color:rgba(255,185,138,.55)}
+#set .row{display:flex; gap:8px}
+#set .row input{flex:1}
+#set .sbtn{
+  width:100%; padding:.8em; border-radius:var(--r-m); cursor:pointer; border:none;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  font-family:inherit; font-size:13.5px; letter-spacing:.18em; margin-top:6px;
+}
+#set .sbtn:active{transform:scale(.98)}
+#set .smsg{font-size:11.5px; letter-spacing:.1em; color:var(--dim); margin-top:8px; min-height:1.2em}
+#set .swarn{
+  margin-top:16px; padding-top:14px; border-top:1px solid var(--line);
+  display:flex; gap:8px; justify-content:flex-end;
+}
+#set .swarn button{
+  padding:.6em 1.1em; border-radius:var(--r-m); cursor:pointer;
+  border:1px solid var(--line); background:var(--glass); color:var(--dim);
+  font-family:inherit; font-size:11.5px; letter-spacing:.14em;
+}
+
+/* ================= 装修中 ================= */
+#wipBtn{ border-color:rgba(255,200,120,.35); color:#ffcf9e; }
+#wipBtn:hover{ background:rgba(255,200,120,.14); border-color:rgba(255,200,120,.6); }
+
+#wip{
+  position:fixed; inset:0; z-index:180; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  background:rgba(6,9,15,.72); backdrop-filter:blur(6px);
+}
+#wip.on{display:flex}
+#wip .wbox{
+  width:min(520px,100%); max-height:82vh; overflow-y:auto;
+  background:rgba(20,26,40,.96);
+  border:1px solid var(--line-hi); border-radius:var(--r-l);
+  padding:22px 22px 18px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);
+  animation:wipIn .3s var(--e) both;
+}
+@keyframes wipIn{from{opacity:0; transform:translateY(10px) scale(.98)} to{opacity:1; transform:none}}
+#wip h3{font-size:14px; font-weight:400; letter-spacing:.24em; color:#ffcf9e; margin-bottom:6px}
+#wip .sub{font-size:11.5px; letter-spacing:.14em; color:var(--soft); margin-bottom:16px}
+#wip .grp{font-size:10.5px; letter-spacing:.24em; color:var(--soft); margin:14px 0 7px}
+#wip ul{list-style:none; display:flex; flex-direction:column; gap:6px}
+#wip li{
+  display:flex; gap:8px; align-items:baseline;
+  font-size:13px; color:var(--dim); line-height:1.6;
+}
+#wip li::before{content:"·"; color:rgba(255,190,150,.6); flex:none}
+#wip li b{font-weight:400; color:var(--ink)}
+#wip .foot{
+  margin-top:18px; padding-top:14px; border-top:1px solid var(--line);
+  display:flex; gap:8px; justify-content:flex-end;
+}
+#wip .foot a, #wip .foot button{
+  padding:.65em 1.2em; border-radius:var(--r-m); cursor:pointer; text-decoration:none;
+  border:1px solid var(--line); background:var(--glass); color:var(--dim);
+  font-family:inherit; font-size:12px; letter-spacing:.16em;
+  transition:.26s var(--e);
+}
+#wip .foot a:hover, #wip .foot button:hover{
+  background:var(--glass-hi); border-color:var(--line-hi); color:var(--ink);
+}
+
+/* ================= 游客转正 ================= */
+#keep{
+  position:fixed; inset:0; z-index:190; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  background:rgba(6,9,15,.8); backdrop-filter:blur(6px);
+}
+#keep.on{display:flex}
+#keep .kbox{
+  width:min(360px,100%);
+  background:rgba(20,26,40,.97); border:1px solid var(--line-hi);
+  border-radius:var(--r-l); padding:24px 22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);
+}
+#keep h3{font-size:16px; font-weight:400; letter-spacing:.16em; margin-bottom:8px}
+#keep .ks{font-size:12px; line-height:1.85; color:var(--dim); margin-bottom:18px}
+#keep input{
+  width:100%; padding:.8em 1em; margin-bottom:10px;
+  border-radius:var(--r-m); border:1px solid var(--line);
+  background:rgba(255,255,255,.04); color:var(--ink);
+  font-family:inherit; font-size:16px; outline:none;
+}
+#keep input:focus{border-color:rgba(255,185,138,.55)}
+#keep button{
+  width:100%; padding:.9em; border:none; border-radius:var(--r-m); cursor:pointer;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  font-family:inherit; font-size:15px; letter-spacing:.2em;
+}
+#keep button:active{transform:scale(.98)}
+#keep .kk{margin-top:12px; text-align:center}
+#keep .kk button{
+  background:transparent; border:1px solid var(--line); color:var(--dim);
+  font-size:12px; letter-spacing:.16em; padding:.6em;
+}
+#keep .kmsg{margin-top:10px; min-height:1.2em; font-size:12px; color:rgba(255,150,130,.85)}
+
+/* ================= 浮尘 ================= */
+#dust{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.55}
+
+/* ================= 气泡扫光 ================= */
+.bub.her::after{
+  content:""; position:absolute; inset:0; border-radius:inherit;
+  pointer-events:none;
+  background:linear-gradient(105deg, transparent 30%, rgba(255,255,255,.75) 48%, transparent 62%);
+  background-size:260% 100%;
+  background-position:180% 0;
+  animation:sweep .85s var(--e) 1 both;
+  mix-blend-mode:overlay;
+}
+@keyframes sweep{
+  from{ background-position:180% 0; }
+  to  { background-position:-80% 0; }
+}
+.bub.her{ position:relative; }
+
+/* ================= 输入聚焦光 ================= */
+#composer{
+  position:relative;
+}
+#composer::before{
+  content:""; position:absolute; inset:-1px; border-radius:var(--r-m);
+  pointer-events:none; opacity:0;
+  background:radial-gradient(60% 120% at 50% 100%,
+             rgba(255,185,138,.18) 0%, transparent 70%);
+  transition:opacity .4s var(--e);
+}
+#composer:focus-within::before{ opacity:1; }
+
+/* ================= 主界面 ================= */
+#main{display:none; height:100dvh; grid-template-columns:76px 1fr 300px; gap:0;
+  position:relative; z-index:2}
+#main.on{display:grid}
+
+/* 角色条 */
+#rail{
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:16px 0; overflow-y:auto;
+  border-right:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+}
+#rail::-webkit-scrollbar{width:0}
+.pav{
+  width:44px; height:44px; border-radius:var(--r-full); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; color:var(--dim);
+  background:var(--glass); border:1px solid var(--line);
+  transition:transform .14s var(--e), background .26s var(--e),
+             border-color .26s var(--e), box-shadow .26s var(--e), color .26s var(--e);
+  flex:none;
+}
+.pav:hover{background:var(--glass-hi); border-color:var(--line-hi); color:var(--ink)}
+.pav:active{transform:scale(.94)}
+.pav.on{
+  color:#241208; border-color:rgba(255,190,150,.55);
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a);
+  box-shadow:0 4px 18px rgba(255,150,100,.35);
+}
+
+/* 聊天列 */
+#chatcol{display:flex; flex-direction:column; min-width:0; min-height:0}
+#topbar{
+  flex:none;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 20px; border-bottom:1px solid var(--line);
+  font-size:12.5px; letter-spacing:.22em; color:var(--dim);
+}
+#topbar .who b{color:var(--ink); font-weight:400; letter-spacing:.24em}
+#topbar .ops{display:flex; gap:8px}
+#topbar .ops button{
+  padding:.5em 1em; border-radius:var(--r-full); cursor:pointer;
+  background:var(--glass); border:1px solid var(--line); color:var(--dim);
+  font-family:inherit; font-size:11px; letter-spacing:.18em;
+  transition:.26s var(--e);
+}
+#topbar .ops button:hover{background:var(--glass-hi); border-color:var(--line-hi); color:var(--ink)}
+#topbar .ops button:active{transform:scale(.96)}
+
+#stream{
+  flex:1 1 0; min-height:0; overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  padding:24px 20px 8px;
+  display:flex; flex-direction:column; gap:14px;
+  scroll-behavior:smooth;
+}
+#stream::-webkit-scrollbar{width:5px}
+#stream::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14); border-radius:var(--r-full)}
+
+.bub{
+  max-width:78%; padding:.85em 1.1em; border-radius:var(--r-m);
+  font-size:15px; line-height:1.75; letter-spacing:.03em;
+  animation:bubIn .32s var(--e) both;
+  word-break:break-word;
+}
+@keyframes bubIn{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+.bub.her{
+  align-self:flex-start;
+  background:rgba(255,255,255,.94); color:#23201d;
+  border-bottom-left-radius:3px;
+  box-shadow:0 4px 18px rgba(0,0,0,.22);
+}
+.bub.her em{font-style:normal; color:rgba(80,60,45,.62)}
+.bub.me{
+  align-self:flex-end;
+  background:#95ec69; color:#12240a;
+  border-bottom-right-radius:3px;
+  box-shadow:0 4px 18px rgba(70,140,40,.22);
+}
+.bub.sys{align-self:center; background:transparent; color:var(--soft);
+  font-size:11.5px; letter-spacing:.2em; box-shadow:none; padding:.2em}
+.typing{display:inline-flex; gap:4px; align-items:center; height:1em}
+.typing i{width:5px; height:5px; border-radius:50%; background:rgba(60,45,35,.4);
+  animation:dotPulse 1.1s ease-in-out infinite}
+.typing i:nth-child(2){animation-delay:.15s}
+.typing i:nth-child(3){animation-delay:.3s}
+@keyframes dotPulse{0%,100%{opacity:.25; transform:translateY(0)} 50%{opacity:1; transform:translateY(-2px)}}
+
+#composer{
+  flex:none;
+  display:flex; gap:10px; align-items:flex-end;
+  padding:14px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
+  border-top:1px solid var(--line);
+}
+#composer textarea{
+  flex:1; resize:none; min-height:46px; max-height:140px;
+  padding:.78em 1em; border-radius:var(--r-m);
+  border:1px solid var(--line); background:rgba(255,255,255,.05);
+  color:var(--ink); font-family:inherit; font-size:16px; line-height:1.5;
+  outline:none; transition:border-color .26s var(--e), box-shadow .26s var(--e);
+}
+#composer textarea:focus{border-color:rgba(255,185,138,.5); box-shadow:0 0 0 3px rgba(255,185,138,.12)}
+#composer textarea::placeholder{color:rgba(255,255,255,.26)}
+#send{
+  flex:none; width:52px; height:46px; border:none; border-radius:var(--r-m); cursor:pointer;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  font-size:15px; transition:transform .14s var(--e), filter .26s var(--e), box-shadow .26s var(--e);
+  box-shadow:0 6px 20px rgba(255,150,100,.3);
+}
+#send:hover{filter:brightness(1.06)}
+#send:active{transform:scale(.95); box-shadow:none}
+#send:disabled{opacity:.4; cursor:default; box-shadow:none}
+
+/* 右栏 */
+#side{
+  border-left:1px solid var(--line);
+  padding:18px 16px; overflow-y:auto;
+  background:rgba(0,0,0,.16);
+}
+#side::-webkit-scrollbar{width:0}
+
+.ringcard{
+  background:linear-gradient(180deg,rgba(250,253,255,.96),rgba(240,247,255,.96));
+  border-radius:var(--r-l); padding:16px 18px 14px;
+  box-shadow:0 20px 48px rgba(0,20,46,.4), inset 0 0 0 1px rgba(255,255,255,.85);
+  color:#1d2b3a;
+}
+.ringstage{position:relative; width:132px; height:132px; margin:0 auto; display:flex; align-items:center; justify-content:center}
+.ringstage svg{width:100%; height:100%; overflow:visible}
+.rtrack{fill:none; stroke:rgba(38,86,140,.13); stroke-width:9; stroke-linecap:round}
+.rfill{fill:none; stroke:url(#rg); stroke-width:9; stroke-linecap:round;
+  filter:drop-shadow(0 0 6px rgba(80,160,255,.45));
+  transition:stroke-dashoffset 1.1s var(--e)}
+.wave{transform-origin:66px 66px}
+.wave path{fill:none; stroke:rgba(90,170,255,.42); stroke-width:.7; stroke-linejoin:round}
+.wave.w1{animation:spin 26s linear infinite}
+.wave.w2{animation:spin 39s linear infinite reverse}
+.wave.w2 path{stroke:rgba(127,208,255,.30)}
+@keyframes spin{from{transform:rotate(0)} to{transform:rotate(360deg)}}
+.rcore{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:2px; pointer-events:none}
+.rcore .cn{font-size:15px; letter-spacing:.16em; text-indent:.16em; color:#1d2b3a; font-weight:500}
+.rcore .cs{font-size:9.5px; letter-spacing:.28em; text-indent:.28em; color:rgba(29,43,58,.4)}
+.ringbars{display:flex; flex-direction:column; gap:7px; margin-top:10px}
+.rbar{display:grid; grid-template-columns:34px 1fr 30px; align-items:center; gap:8px;
+  font-size:10px; letter-spacing:.08em; color:rgba(29,43,58,.62)}
+.rbar .bt{height:3px; border-radius:var(--r-full); background:rgba(38,86,140,.13); overflow:hidden}
+.rbar .bf{display:block; height:100%; border-radius:var(--r-full);
+  background:linear-gradient(90deg,#3f9bff 0%,#9fdcff 45%,#3f9bff 100%);
+  background-size:220% 100%; animation:shimmer 3.4s linear infinite;
+  transition:width 1.1s var(--e)}
+@keyframes shimmer{from{background-position:0 0} to{background-position:220% 0}}
+.rbar .bv{text-align:right; color:rgba(29,43,58,.4); font-variant-numeric:tabular-nums}
+.rfoot{display:flex; justify-content:space-between; margin-top:10px; padding-top:8px;
+  border-top:1px solid rgba(38,86,140,.10); font-size:9.5px; letter-spacing:.16em;
+  color:rgba(29,43,58,.4)}
+
+.sideblock{margin-top:16px}
+.sidenote{font-size:10px; letter-spacing:.24em; color:var(--soft); margin-bottom:8px; text-align:center}
+.scenebtn{
+  display:flex; align-items:center; justify-content:center; gap:.6em;
+  width:100%; padding:.85em; margin-bottom:8px;
+  border-radius:var(--r-m); cursor:pointer; text-decoration:none;
+  border:1px solid var(--line); background:var(--glass); color:var(--dim);
+  font-family:inherit; font-size:12.5px; letter-spacing:.24em;
+  transition:transform .14s var(--e), background .26s var(--e),
+             border-color .26s var(--e), box-shadow .26s var(--e), color .26s var(--e);
+}
+.scenebtn:hover{background:var(--glass-hi); border-color:var(--line-hi); color:var(--ink);
+  box-shadow:0 6px 20px rgba(0,0,0,.24)}
+.scenebtn:active{transform:scale(.97); box-shadow:none}
+.scenebtn.sea{border-color:rgba(90,170,255,.3); color:#9fd0ff}
+.scenebtn.sea:hover{background:rgba(90,170,255,.14); border-color:rgba(90,170,255,.55)}
+.scenebtn.rose{border-color:rgba(232,120,150,.3); color:#ffb0c4}
+.scenebtn.rose:hover{background:rgba(232,120,150,.14); border-color:rgba(232,120,150,.55)}
+
+/* 手机 */
+#mobileOps{display:none; flex:none}
+@media (max-width:820px){
+  #main.on{grid-template-columns:1fr; grid-template-rows:auto minmax(0,1fr)}
+  #rail{flex-direction:row; border-right:none; border-bottom:1px solid var(--line);
+    padding:10px 12px; gap:6px; overflow-x:auto; overflow-y:hidden}
+  .pav{width:38px; height:38px; font-size:11.5px}
+  #side{display:none}
+  #mobileOps{display:flex; gap:8px; padding:0 20px 10px}
+  #mobileOps .scenebtn{margin:0; padding:.6em; font-size:11px; letter-spacing:.14em}
+  .bub{max-width:86%; font-size:15.5px}
+  #stream{padding:16px 14px 6px}
+  #composer{padding:10px 14px calc(12px + env(safe-area-inset-bottom)) 14px}
+  #composer textarea{font-size:16px; min-height:42px}
+  #send{width:46px; height:42px}
+  #topbar{padding:10px 14px; font-size:11.5px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important; transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<div id="keep">
+  <div class="kbox">
+    <h3>把她留下</h3>
+    <div class="ks">她说她不想忘。留个账号，她就记得刚才那十轮。</div>
+    <input id="ku" placeholder="用户名（至少 2 个字）" autocomplete="username">
+    <input id="kp" type="password" placeholder="密码（至少 6 位）">
+    <button id="kbtn">留下她</button>
+    <div class="kk"><button id="kskip">不用了</button></div>
+    <div class="kmsg" id="kmsg"></div>
+  </div>
+</div>
+
+<div id="set">
+  <div class="sbox">
+    <h3>设置</h3>
+
+    <div class="fld">
+      <label>昵称</label>
+      <input id="setNick" type="text" placeholder="她想怎么叫你">
+    </div>
+
+    <div class="fld">
+      <label>回复风格</label>
+      <div class="row">
+        <button class="tab" id="stNormal" style="flex:1">正常</button>
+        <button class="tab" id="stShort" style="flex:1">简短</button>
+        <button class="tab" id="stLong" style="flex:1">啰嗦</button>
+      </div>
+    </div>
+
+    <div class="fld">
+      <label>安静时段（她不主动找你）</label>
+      <div class="row">
+        <input id="setQStart" type="text" placeholder="23:30">
+        <input id="setQEnd" type="text" placeholder="07:00">
+      </div>
+    </div>
+
+    <button class="sbtn" id="setSave">保存偏好</button>
+    <div class="smsg" id="setMsg"></div>
+
+    <div class="fld" style="margin-top:18px">
+      <label>改密码</label>
+      <div class="row">
+        <input id="pwOld" type="password" placeholder="旧密码">
+        <input id="pwNew" type="password" placeholder="新密码">
+      </div>
+      <button class="sbtn" id="pwSave" style="margin-top:8px">改密码</button>
+      <div class="smsg" id="pwMsg"></div>
+    </div>
+
+    <div class="swarn">
+      <button id="setClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="wip">
+  <div class="wbox">
+    <h3>这间还在装修</h3>
+    <div class="sub">能用的都在，没搬过来的列在下面。旧界面功能是齐的。</div>
+
+    <div class="grp">还没搬过来</div>
+    <ul>
+      <li><b>注册</b>　只能用已有账号登录</li>
+      <li><b>免登录试聊</b>　不用注册先聊十轮</li>
+      <li><b>游客转正</b>　聊完之后留个账号</li>
+      <li><b>改密码</b></li>
+      <li><b>昵称 / 回复风格 / 安静时段</b></li>
+      <li><b>里程碑</b></li>
+      <li><b>剧情</b></li>
+      <li><b>纪念册与海报</b></li>
+      <li><b>自定义角色</b>　增删自己的角色</li>
+      <li><b>导入聊天记录</b></li>
+    </ul>
+
+    <div class="grp">暂时只有半套</div>
+    <ul>
+      <li><b>清空对话</b>　现在只是清屏，不换会话</li>
+    </ul>
+
+    <div class="grp">已经能用的</div>
+    <ul>
+      <li>登录、聊天、换角色</li>
+      <li>她记得的事（可固定）、换背景、记忆模式、导出</li>
+      <li>状态环、海边、粒子玫瑰</li>
+    </ul>
+
+    <div class="foot">
+      <a href="/?ui=old">去旧界面（功能齐全）</a>
+      <button id="wipClose">知道了</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="dust"></canvas>
+<div id="bg"></div>
+<div id="bgveil"></div>
+
+<!-- 启动警告 -->
+<div id="notice"><div class="nbox" id="noticeBox"></div></div>
+
+<!-- 加载遮罩 -->
+<div id="loader">
+  <div class="lt" id="loaderText">正在过去</div>
+  <div class="lb"><i id="loaderBar"></i></div>
+  <div class="lp" id="loaderPct">0%</div>
+</div>
+
+<!-- 登录 -->
+<div id="login">
+  <div class="logo">陪你AI</div>
+  <div class="slogan">她记得你说过的话。不是聊天记录回放。</div>
+  <div class="lcard">
+    <div class="tabs">
+      <button class="tab on" data-tab="login">登录</button>
+      <button class="tab" data-tab="reg">注册</button>
+      <button class="tab" data-tab="guest">先聊十轮</button>
+    </div>
+
+    <div class="pane on" id="pane-login">
+      <input id="lu" placeholder="用户名" autocomplete="username">
+      <input id="lp" type="password" placeholder="密码" autocomplete="current-password">
+      <button id="lbtn">进去</button>
+    </div>
+
+    <div class="pane" id="pane-reg">
+      <input id="ru" placeholder="用户名（至少 2 个字）" autocomplete="username">
+      <input id="rp" type="password" placeholder="密码（至少 6 位）">
+      <input id="rp2" type="password" placeholder="再输一次密码">
+      <button id="rbtn">注册并进去</button>
+    </div>
+
+    <div class="pane" id="pane-guest">
+      <p class="gintro">不用注册，先跟她说十轮。十轮之后你决定要不要留下。</p>
+      <button id="gbtn">现在就开始</button>
+    </div>
+
+    <div id="lmsg"></div>
+  </div>
+  <div class="links">
+    <a href="/scene/beach">海边</a>
+    <a href="/scene/rose">粒子玫瑰</a>
+    <a href="/voice">她说话的样子</a>
+      <a href="/menu">全部功能</a>
+    <a href="/?ui=old">旧界面</a>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div id="main">
+  <div id="rail"></div>
+
+  <div id="chatcol">
+    <div id="topbar">
+      <div class="who">和 <b id="whoName">她</b> 说话</div>
+      <div class="ops">
+        <button id="pianoBtn">她弹</button>
+        <button id="keysBtn">你弹</button>
+        <button id="setBtn">设置</button>
+        <button id="noticeBtn">公告</button>
+        <button id="wipBtn">装修中</button>
+        <button id="btnHome">功能</button>
+        <button id="btnClear">清空</button>
+        <button id="btnOut">退出</button>
+      </div>
+    </div>
+    <div id="stream"></div>
+    <div id="mobileOps">
+      <a class="scenebtn sea" href="/scene/beach">海边</a>
+      <a class="scenebtn rose" href="/scene/rose">玫瑰</a>
+      <a class="scenebtn" href="/piano" style="border-color:rgba(255,190,150,.3);color:#ffcf9e">她弹</a>
+      <a class="scenebtn" href="/keys" style="border-color:rgba(160,220,255,.3);color:#9fd0ff">你弹</a>
+    </div>
+    <div id="composer">
+      <textarea id="inp" rows="1" placeholder="说点什么……"></textarea>
+      <button id="send">↑</button>
+    </div>
+  </div>
+
+  <div id="side">
+    <div class="ringcard">
+      <div class="ringstage">
+        <svg viewBox="0 0 132 132" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#3f9bff"/>
+              <stop offset="48%" stop-color="#7fd0ff"/>
+              <stop offset="100%" stop-color="#2a6fd0"/>
+            </linearGradient>
+          </defs>
+          <g class="wave w1"><path id="wave1"/></g>
+          <g class="wave w2"><path id="wave2"/></g>
+          <g id="arcs"></g>
+        </svg>
+        <div class="rcore"><span class="cn" id="rState">—</span><span class="cs" id="rStage">—</span></div>
+      </div>
+      <div class="ringbars" id="rbars"></div>
+      <div class="rfoot"><span id="rWho">—</span><span id="rMem">记忆 0 条</span></div>
+    </div>
+
+    <div class="sideblock">
+      <div class="sidenote">可以去的地方</div>
+      <a class="scenebtn sea" href="/scene/beach">去海边</a>
+      <a class="scenebtn rose" href="/scene/rose">粒子玫瑰</a>
+      <a class="scenebtn" href="/piano" style="border-color:rgba(255,190,150,.3);color:#ffcf9e">她弹给你听</a>
+      <a class="scenebtn" href="/keys" style="border-color:rgba(160,220,255,.3);color:#9fd0ff">你自己弹</a>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 状态 ================= */
+const S = {
+  user_id: localStorage.getItem("pn_uid") || "",
+  persona: localStorage.getItem("pn_persona") || "",
+  session_id: localStorage.getItem("pn_sid") || "",
+  history: [],
+  personas: [],
+  busy: false,
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ================= 工具 ================= */
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+function rich(text){
+  // （动作）显示成淡一点的斜体感
+  return esc(text).replace(/（([^）]*)）/g, '<em>（$1）</em>');
+}
+
+/* ================= 加载进度条 ================= */
+let loaderTimer = null;
+function showLoader(text){
+  $("loader").classList.add("on");
+  $("loaderText").textContent = text || "正在过去";
+  let v = 0;
+  $("loaderBar").style.width = "0%";
+  $("loaderPct").textContent = "0%";
+  clearInterval(loaderTimer);
+  loaderTimer = setInterval(() => {
+    v = Math.min(88, v + Math.random() * 9 + 3);
+    $("loaderBar").style.width = v + "%";
+    $("loaderPct").textContent = Math.round(v) + "%";
+  }, 140);
+}
+function endLoader(){
+  clearInterval(loaderTimer);
+  $("loaderBar").style.width = "100%";
+  $("loaderPct").textContent = "100%";
+  setTimeout(() => { $("loader").classList.remove("on"); }, 260);
+}
+window.addEventListener("load", () => { if ($("loader").classList.contains("on")) endLoader(); });
+
+/* 场景链接：点了先出进度条 */
+document.querySelectorAll('a[href^="/scene/"]').forEach(a => {
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    showLoader(a.classList.contains("rose") ? "正在开花" : "正在过去");
+    setTimeout(() => { window.location.href = a.getAttribute("href"); }, 420);
+  });
+});
+
+/* ================= 浮尘 ================= */
+(() => {
+  const cv = document.getElementById("dust");
+  if (!cv) return;
+  const ctx = cv.getContext("2d");
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  let W, H, ps = [];
+
+  function resize(){
+    W = cv.width = innerWidth * dpr;
+    H = cv.height = innerHeight * dpr;
+    cv.style.width = innerWidth + "px";
+    cv.style.height = innerHeight + "px";
+    const n = Math.round(innerWidth * innerHeight / 26000);
+    ps = Array.from({length: Math.min(n, 60)}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      r: (Math.random()*1.6+.4)*dpr,
+      vx: (Math.random()-.5)*.10*dpr,
+      vy: -(Math.random()*.09+.02)*dpr,
+      a: Math.random()*.22+.05,
+      ph: Math.random()*6.28,
+    }));
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for (const p of ps){
+      p.x += p.vx; p.y += p.vy; p.ph += .01;
+      p.x += Math.sin(p.ph) * .12 * dpr;
+      if (p.y < -8){ p.y = H + 8; p.x = Math.random()*W; }
+      if (p.x < -8) p.x = W + 8;
+      if (p.x > W + 8) p.x = -8;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r*4);
+      g.addColorStop(0, "rgba(255,226,200," + p.a + ")");
+      g.addColorStop(1, "rgba(255,226,200,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r*4, 0, 6.2832); ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  addEventListener("resize", resize);
+  resize();
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) draw();
+})();
+
+/* ================= 背景图 ================= */
+async function applyBg(persona, loginMode){
+  try {
+    const q = "/api/bg?p=" + encodeURIComponent(persona || "") +
+              "&u=" + encodeURIComponent(S.user_id || "") +
+              (loginMode ? "&login=1" : "");
+    const d = await api(q);
+    if (!d || !d.ok || !d.url) return;
+    const url = (window.innerWidth <= 820 && d.url_v) ? d.url_v : d.url;
+    const bg = $("bg");
+    if (bg.dataset.url === url) return;
+    bg.dataset.url = url;
+    bg.style.backgroundImage = "url('" + url + "')";
+    bg.classList.add("on");
+  } catch (e) {}
+}
+
+window.addEventListener("resize", () => {
+  if ($("bg").dataset.url) {
+    const u = $("bg").dataset.url;
+    // 横竖屏切换后重新取一次
+    if ((window.innerWidth <= 820) !== u.includes("_v")) applyBg(S.persona, !S.user_id);
+  }
+});
+
+/* ================= 启动警告 ================= */
+let noticeDone = false;
+async function showNoticeIfNeeded(){
+  try {
+    const d = await api("/api/notice");
+    if (!d || !d.show || !d.html){ noticeDone = true; return false; }
+    const box = $("noticeBox");
+    box.innerHTML = d.html;
+    const btn = document.createElement("button");
+    btn.className = "nbtn";
+    btn.textContent = "我明白了，进去吧";
+    box.appendChild(btn);
+    $("notice").classList.add("on");
+    btn.addEventListener("click", () => {
+      $("notice").classList.remove("on");
+      noticeDone = true;
+      afterNotice();
+      setTimeout(() => $("lu") && $("lu").focus(), 200);
+    });
+    return true;
+  } catch (e){
+    noticeDone = true;
+    return false;
+  }
+}
+
+/* ================= 环 ================= */
+function arcPath(i){
+  const CX = 66, CY = 66, R = 48, GAP = 8, SPAN = 90;
+  const a0 = -90 + i * SPAN + GAP / 2;
+  const a1 = -90 + (i + 1) * SPAN - GAP / 2;
+  const p = (deg) => [CX + R * Math.cos(deg * Math.PI / 180), CY + R * Math.sin(deg * Math.PI / 180)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${R} ${R} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+function wavePath(rb, amp, freq, phase){
+  const CX = 66, CY = 66, N = 160, pts = [];
+  for (let k = 0; k <= N; k++){
+    const th = 2 * Math.PI * k / N;
+    const r = rb + amp * Math.sin(freq * th + phase);
+    pts.push([CX + r * Math.cos(th - Math.PI/2), CY + r * Math.sin(th - Math.PI/2)]);
+  }
+  return "M " + pts[0][0].toFixed(2) + " " + pts[0][1].toFixed(2) +
+         " L " + pts.slice(1).map(p => p[0].toFixed(2) + " " + p[1].toFixed(2)).join(" L ");
+}
+
+function buildRing(){
+  $("wave1").setAttribute("d", wavePath(59, 1.9, 9, 0));
+  $("wave2").setAttribute("d", wavePath(62.5, 1.3, 13, 2.1));
+  let html = "";
+  for (let i = 0; i < 4; i++){
+    html += '<path class="rtrack" d="' + arcPath(i) + '"/>';
+    html += '<path class="rfill" id="rf' + i + '" d="' + arcPath(i) +
+            '" pathLength="100" stroke-dasharray="100 100" stroke-dashoffset="100"/>';
+  }
+  $("arcs").innerHTML = html;
+  $("rbars").innerHTML = ["好感","信任","情绪","精力"].map((n,i) =>
+    '<div class="rbar"><span>' + n + '</span>' +
+    '<span class="bt"><i class="bf" id="rb' + i + '" style="width:0%"></i></span>' +
+    '<span class="bv" id="rv' + i + '">—</span></div>').join("");
+}
+
+function setRing(r){
+  if (!r || r.love === undefined) return;
+  const vals = [r.love, r.trust, (r.mood + 1) * 50, r.energy * 100];
+  const labs = [r.love_label, r.trust_label, r.mood_label, r.energy_label];
+  vals.forEach((v, i) => {
+    const off = Math.max(0, Math.min(100, 100 - v));
+    const el = $("rf" + i);
+    if (el) el.setAttribute("stroke-dashoffset", off.toFixed(2));
+    const bar = $("rb" + i);
+    if (bar) bar.style.width = Math.max(0, Math.min(100, v)).toFixed(1) + "%";
+    const lab = $("rv" + i);
+    if (lab) lab.textContent = labs[i] || "—";
+  });
+  $("rState").textContent = r.state || "—";
+  $("rStage").textContent = r.stage || "—";
+  $("rWho").textContent = S.persona || "—";
+  $("rMem").textContent = "记忆 " + (r.mem || 0) + " 条";
+}
+
+/* ================= 气泡 ================= */
+function addBub(role, text){
+  const d = document.createElement("div");
+  d.className = "bub " + (role === "user" ? "me" : (role === "sys" ? "sys" : "her"));
+  d.innerHTML = role === "user" ? esc(text) : rich(text);
+  $("stream").appendChild(d);
+  $("stream").scrollTop = $("stream").scrollHeight;
+  return d;
+}
+
+function clearStream(){ $("stream").innerHTML = ""; }
+
+function renderHistory(hist){
+  clearStream();
+  (hist || []).forEach(item => {
+    let c = item.content;
+    if (Array.isArray(c)) c = c.map(x => x.text || "").join("");
+    if (item.role === "user") addBub("user", c);
+    else addBub("assistant", c);
+  });
+}
+
+/* ================= 打字机 ================= */
+function typeOut(role, text, done){
+  const d = document.createElement("div");
+  d.className = "bub " + (role === "user" ? "me" : "her");
+  $("stream").appendChild(d);
+  let i = 0;
+  const step = Math.max(1, Math.round(text.length / 60));
+  const timer = setInterval(() => {
+    i += step;
+    d.innerHTML = rich(text.slice(0, i));
+    $("stream").scrollTop = $("stream").scrollHeight;
+    if (i >= text.length){
+      clearInterval(timer);
+      d.innerHTML = rich(text);
+      done && done();
+    }
+  }, 22);
+}
+
+function thinking(){
+  const d = document.createElement("div");
+  d.className = "bub her";
+  d.id = "think";
+  d.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  $("stream").appendChild(d);
+  $("stream").scrollTop = $("stream").scrollHeight;
+}
+function unthink(){ const d = $("think"); if (d) d.remove(); }
+
+/* ================= 接口 ================= */
+async function api(path, body, method){
+  const opt = { method: method || (body ? "POST" : "GET"), headers: {} };
+  if (body){ opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  return await r.json();
+}
+
+/* ================= 渲染角色条 ================= */
+function renderRail(){
+  const rail = $("rail");
+  rail.innerHTML = "";
+  (S.personas || []).forEach(p => {
+    const b = document.createElement("button");
+    b.className = "pav" + (p === S.persona ? " on" : "");
+    b.textContent = p.slice(0, 2);
+    b.title = p;
+    b.addEventListener("click", () => switchTo(p));
+    rail.appendChild(b);
+  });
+}
+
+/* ================= 动作 ================= */
+async function doLogin(){
+  const u = $("lu").value.trim();
+  const p = $("lp").value;
+  if (!u || !p){ $("lmsg").textContent = "用户名和密码都要填"; return; }
+  $("lbtn").disabled = true;
+  $("lmsg").textContent = "……";
+  showLoader("正在开门");
+  try {
+    const d = await api("/api/login", { username: u, password: p });
+    if (!d.ok){ throw new Error(d.error || "登录失败"); }
+    S.user_id = d.user_id;
+    S.persona = d.persona;
+    S.session_id = d.session_id;
+    localStorage.setItem("pn_uid", S.user_id);
+    localStorage.setItem("pn_persona", S.persona);
+    localStorage.setItem("pn_sid", S.session_id);
+    enterMain(d);
+  } catch (e){
+    endLoader();
+    $("lmsg").textContent = e.message || "登录失败";
+  } finally {
+    $("lbtn").disabled = false;
+  }
+}
+
+function enterMain(d){
+  $("login").style.display = "none";
+  applyBg(S.persona, false);
+  $("main").classList.add("on");
+  $("whoName").textContent = S.persona || "她";
+  renderRail();
+  renderHistory(d.history || []);
+  setRing(d.ring);
+  S.history = d.history || [];
+  setTimeout(endLoader, 200);
+}
+
+async function switchTo(p){
+  if (S.busy || p === S.persona) return;
+  S.busy = true;
+  showLoader("正在换人");
+  try {
+    const d = await api("/api/persona", { user_id: S.user_id, persona: p });
+    if (!d.ok) throw new Error(d.error || "切换失败");
+    S.persona = p;
+    S.session_id = d.session_id;
+    S.history = d.history || [];
+    localStorage.setItem("pn_persona", p);
+    localStorage.setItem("pn_sid", d.session_id);
+    $("whoName").textContent = p;
+    applyBg(p, false);
+    renderRail();
+    renderHistory(d.history || []);
+    setRing(d.ring);
+  } catch (e){
+    addBub("sys", "切换失败：" + (e.message || ""));
+  } finally {
+    S.busy = false;
+    endLoader();
+  }
+}
+
+async function send(){
+  const box = $("inp");
+  const text = box.value.trim();
+  if (!text || S.busy) return;
+
+  // 游客模式：走 /api/guest_chat
+  if (!S.user_id && GTOK){
+    box.value = "";
+    addBub("user", text);
+    thinking();
+    S.busy = true; $("send").disabled = true;
+    try {
+      const d = await api("/api/guest_chat", { token: GTOK, message: text });
+      unthink();
+      if (!d.ok) throw new Error(d.error || "没有回复");
+      const segs = d.segs || [];
+      let i = 0;
+      const next = () => {
+        if (i >= segs.length){
+          $("send").disabled = false; S.busy = false;
+          if (d.over){
+            addBub("her", d.ending || "……");
+            setTimeout(() => $("keep").classList.add("on"), 900);
+          } else if (d.turns_left !== undefined && d.turns_left <= 3){
+            addBub("sys", "还剩 " + d.turns_left + " 轮");
+          }
+          return;
+        }
+        typeOut("her", segs[i++], next);
+      };
+      next();
+    } catch (e){
+      unthink();
+      addBub("sys", "出错了：" + (e.message || ""));
+      $("send").disabled = false; S.busy = false;
+    }
+    return;
+  }
+
+  if (!S.user_id){ addBub("sys", "先登录"); return; }
+
+  box.value = "";
+  box.style.height = "auto";
+  addBub("user", text);
+  thinking();
+
+  S.busy = true;
+  $("send").disabled = true;
+  try {
+    const d = await api("/api/chat", {
+      user_id: S.user_id, persona: S.persona,
+      session_id: S.session_id, message: text, history: S.history,
+    });
+    unthink();
+    if (!d.ok) throw new Error(d.error || "没有回复");
+
+    S.history = d.history || S.history;
+    if (d.session_id) { S.session_id = d.session_id; localStorage.setItem("pn_sid", S.session_id); }
+
+    const segs = d.segs || [];
+    if (!segs.length){ addBub("her", "……"); }
+    let i = 0;
+    const next = () => {
+      if (i >= segs.length){ $("send").disabled = false; S.busy = false; setRing(d.ring); return; }
+      typeOut("her", segs[i++], next);
+    };
+    next();
+  } catch (e){
+    unthink();
+    addBub("sys", "出错了：" + (e.message || ""));
+    $("send").disabled = false;
+    S.busy = false;
+  }
+}
+
+/* ================= 事件绑定 ================= */
+/* ---- tab 切换 ---- */
+document.querySelectorAll(".lcard .tab").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".lcard .tab").forEach(x => x.classList.remove("on"));
+    document.querySelectorAll(".lcard .pane").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    const p = $("pane-" + b.dataset.tab);
+    if (p) p.classList.add("on");
+    const first = p && p.querySelector("input");
+    if (first) setTimeout(() => first.focus(), 120);
+  });
+});
+
+/* ---- 注册 ---- */
+async function doRegister(){
+  const u = $("ru").value.trim(), p = $("rp").value, p2 = $("rp2").value;
+  if (!u || !p){ $("lmsg").textContent = "用户名和密码都要填"; return; }
+  if (p !== p2){ $("lmsg").textContent = "两次密码不一样"; return; }
+  $("rbtn").disabled = true; $("lmsg").textContent = "……";
+  showLoader("正在建");
+  try {
+    const d = await api("/api/register", { username: u, password: p, password2: p2 });
+    if (!d.ok) throw new Error(d.error || "注册失败");
+    S.user_id = d.user_id; S.persona = d.persona; S.session_id = d.session_id;
+    localStorage.setItem("pn_uid", S.user_id);
+    localStorage.setItem("pn_persona", S.persona);
+    localStorage.setItem("pn_sid", S.session_id);
+    enterMain(d);
+  } catch (e){
+    endLoader();
+    $("lmsg").textContent = e.message || "注册失败";
+  } finally { $("rbtn").disabled = false; }
+}
+$("rbtn").addEventListener("click", doRegister);
+$("rp2").addEventListener("keydown", e => { if (e.key === "Enter") doRegister(); });
+
+/* ---- 免登录试聊 ---- */
+let GTOK = "";
+async function doGuest(){
+  $("gbtn").disabled = true; $("lmsg").textContent = "……";
+  showLoader("她正在过来");
+  try {
+    const d = await api("/api/guest", {});
+    if (!d.ok) throw new Error(d.error || "现在开不了");
+    GTOK = d.token;
+    S.persona = d.persona;
+    S.user_id = "";
+    S.session_id = "";
+    $("login").style.display = "none";
+    $("main").classList.add("on");
+    $("whoName").textContent = d.persona;
+    $("rail").innerHTML = "";
+    $("btnHome").style.display = "none";
+    $("setBtn").style.display = "none";
+    clearStream();
+    addBub("sys", "十轮。聊完她会说一句话。");
+    (d.opening || []).forEach(x => addBub("her", x));
+    setRing(null);
+    setTimeout(endLoader, 200);
+  } catch (e){
+    endLoader();
+    $("lmsg").textContent = e.message || "现在开不了";
+  } finally { $("gbtn").disabled = false; }
+}
+$("gbtn").addEventListener("click", doGuest);
+
+/* ---- 清空（真清） ---- */
+async function doClear(){
+  if (!S.user_id || S.busy) return;
+  showLoader("正在清");
+  try {
+    const d = await api("/api/clear", { user_id: S.user_id, persona: S.persona });
+    if (d.ok){
+      S.session_id = d.session_id;
+      localStorage.setItem("pn_sid", S.session_id);
+      renderHistory(d.history || []);
+    }
+  } catch (e) {}
+  endLoader();
+}
+$("btnClear").addEventListener("click", doClear);
+
+/* ---- 设置面板 ---- */
+let stylePick = "normal";
+function pickStyle(v){
+  stylePick = v;
+  ["stNormal","stShort","stLong"].forEach(id => $(id).classList.remove("on"));
+  $({normal:"stNormal", short:"stShort", long:"stLong"}[v]).classList.add("on");
+}
+$("stNormal").addEventListener("click", () => pickStyle("normal"));
+$("stShort").addEventListener("click", () => pickStyle("short"));
+$("stLong").addEventListener("click", () => pickStyle("long"));
+pickStyle("normal");
+
+$("setBtn").addEventListener("click", async () => {
+  $("set").classList.add("on");
+  if (!S.user_id) return;
+  try {
+    const d = await api("/api/global?u=" + encodeURIComponent(S.user_id));
+    if (d.ok && d.user){
+      $("setNick").value = d.user.nickname || "";
+      const st = d.user.reply_style || "normal";
+      pickStyle(["normal","short","long"].includes(st) ? st : "normal");
+    }
+  } catch (e) {}
+});
+$("setClose").addEventListener("click", () => $("set").classList.remove("on"));
+$("set").addEventListener("click", e => { if (e.target.id === "set") $("set").classList.remove("on"); });
+
+$("setSave").addEventListener("click", async () => {
+  if (!S.user_id) return;
+  $("setMsg").textContent = "……";
+  try {
+    const nick = $("setNick").value.trim();
+    if (nick){
+      await api("/api/nickname", { user_id: S.user_id, nickname: nick });
+      $("whoName").textContent = S.persona;
+    }
+    const qs = $("setQStart").value.trim(), qe = $("setQEnd").value.trim();
+    const d = await api("/api/prefs", {
+      user_id: S.user_id, style: stylePick,
+      quiet_on: !!(qs && qe), start: qs, end: qe
+    });
+    $("setMsg").textContent = d.ok ? "已保存" : (d.msg || d.error || "没存上");
+  } catch (e){ $("setMsg").textContent = "没存上"; }
+});
+
+$("pwSave").addEventListener("click", async () => {
+  if (!S.user_id) return;
+  $("pwMsg").textContent = "……";
+  try {
+    const d = await api("/api/password", {
+      user_id: S.user_id, old: $("pwOld").value,
+      new: $("pwNew").value, new2: $("pwNew").value
+    });
+    $("pwMsg").textContent = d.ok ? "改好了" : (d.msg || d.error || "没改成");
+    if (d.ok){ $("pwOld").value = ""; $("pwNew").value = ""; }
+  } catch (e){ $("pwMsg").textContent = "没改成"; }
+});
+
+$("lbtn").addEventListener("click", doLogin);
+$("lp").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+$("send").addEventListener("click", send);
+$("inp").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); send(); }
+});
+$("inp").addEventListener("input", () => {
+  const t = $("inp");
+  t.style.height = "auto";
+  t.style.height = Math.min(140, t.scrollHeight) + "px";
+});
+/* ---- 游客转正 ---- */
+async function doKeep(){
+  const u = $("ku").value.trim(), p = $("kp").value;
+  if (!u || !p){ $("kmsg").textContent = "用户名和密码都要填"; return; }
+  $("kbtn").disabled = true; $("kmsg").textContent = "……";
+  showLoader("正在留下");
+  try {
+    const d = await api("/api/keep", { username: u, password: p, token: GTOK });
+    if (!d.ok) throw new Error(d.error || "没留下");
+    S.user_id = d.user_id; S.persona = d.persona; S.session_id = d.session_id;
+    GTOK = "";
+    localStorage.setItem("pn_uid", S.user_id);
+    localStorage.setItem("pn_persona", S.persona);
+    localStorage.setItem("pn_sid", S.session_id);
+    $("keep").classList.remove("on");
+    $("btnHome").style.display = "";
+    $("setBtn").style.display = "";
+    renderRail();
+    renderHistory(d.history || []);
+    setRing(d.ring);
+    $("whoName").textContent = S.persona;
+    endLoader();
+  } catch (e){
+    endLoader();
+    $("kmsg").textContent = e.message || "没留下";
+  } finally { $("kbtn").disabled = false; }
+}
+$("kbtn").addEventListener("click", doKeep);
+$("kskip").addEventListener("click", () => {
+  $("keep").classList.remove("on");
+  addBub("sys", "（她没有留你。）");
+});
+
+$("pianoBtn").addEventListener("click", () => { showLoader("她正在坐下"); setTimeout(() => location.href = "/piano", 320); });
+$("keysBtn").addEventListener("click", () => { showLoader("正在搬琴"); setTimeout(() => location.href = "/keys", 320); });
+
+$("noticeBtn").addEventListener("click", () => { location.href = "/notice"; });
+
+$("wipBtn").addEventListener("click", () => $("wip").classList.add("on"));
+$("wipClose").addEventListener("click", () => $("wip").classList.remove("on"));
+$("wip").addEventListener("click", (e) => { if (e.target.id === "wip") $("wip").classList.remove("on"); });
+$("btnHome").addEventListener("click", () => { showLoader("正在开门"); setTimeout(() => location.href = "/home", 320); });
+$("btnClear").addEventListener("click", () => { clearStream(); addBub("sys", "（清屏了）"); });
+$("btnOut").addEventListener("click", () => {
+  ["pn_uid","pn_persona","pn_sid"].forEach(k => localStorage.removeItem(k));
+  location.reload();
+});
+
+/* ================= 启动 ================= */
+(async () => {
+  buildRing();
+
+  try {
+    const p = await api("/api/personas");
+    S.personas = p.personas || [];
+    if (!S.persona) S.persona = p.default || (S.personas[0] || "");
+  } catch (e) {}
+
+  // 登录页的背景（没登录时用登录背景）
+  applyBg("", true);
+
+  // 有登录态的话，进场露的是这个角色的背景
+  if (S.user_id) applyBg(S.persona, false);
+
+  // 启动警告：没点过就一直挡着
+  const showed = await showNoticeIfNeeded();
+  if (showed) return;   // 点完之后在按钮回调里继续
+
+  await afterNotice();
+})();
+
+async function afterNotice(){
+
+  if (S.user_id){
+    try {
+      const d = await api("/api/persona", { user_id: S.user_id, persona: S.persona });
+      if (d.ok){ enterMain(d); return; }
+    } catch (e) {}
+    localStorage.removeItem("pn_uid");
+    localStorage.removeItem("pn_persona");
+    localStorage.removeItem("pn_sid");
+    S.user_id = "";
+    S.session_id = "";
+  }
+}
+
+</script>
+
+
+</body>
+</html>

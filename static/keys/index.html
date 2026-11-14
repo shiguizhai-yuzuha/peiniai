@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>电子琴</title>
+<style>
+:root{
+  --ink:#f2ece4; --dim:rgba(242,236,228,.60); --soft:rgba(242,236,228,.30);
+  --line:rgba(255,255,255,.10); --warm:#ffb98a;
+  --m:12px; --l:16px; --full:999px;
+  --e:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  background:linear-gradient(180deg,#0f1420 0%,#080b11 100%);
+  color:var(--ink);
+  font-family:"Songti SC","Noto Serif SC",-apple-system,"PingFang SC",serif;
+  display:flex; flex-direction:column;
+  -webkit-user-select:none; user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+/* 顶部 */
+#top{
+  flex:none; display:flex; justify-content:space-between; align-items:center;
+  padding:14px 18px; font-size:12px; letter-spacing:.2em; color:var(--dim);
+  z-index:3;
+}
+#top a{
+  color:var(--dim); text-decoration:none; padding:.5em 1em;
+  border:1px solid var(--line); border-radius:var(--full); font-size:11px;
+  transition:.24s var(--e);
+}
+#top a:hover{color:var(--ink); border-color:rgba(255,255,255,.3)}
+#top .st{color:var(--soft); font-size:11px}
+
+/* 光晕层（随音高变色） */
+#glow{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  transition:background 1.2s ease;
+}
+
+/* 粒子 */
+#fx{position:fixed; inset:0; z-index:2; pointer-events:none}
+
+/* 中间提示 */
+#hint{
+  flex:1; display:flex; align-items:center; justify-content:center;
+  font-size:13px; letter-spacing:.24em; color:var(--soft);
+  z-index:1; pointer-events:none; opacity:1; transition:opacity .6s ease;
+}
+#hint.gone{opacity:0}
+
+/* 键盘 */
+#keysWrap{
+  flex:none; position:relative; z-index:3;
+  padding:0 8px calc(10px + env(safe-area-inset-bottom)) 8px;
+  height:min(46vh, 300px);
+}
+#keys{
+  position:relative; display:flex; height:100%; gap:0;
+  border-radius:10px; overflow:hidden;
+  box-shadow:0 -6px 40px rgba(255,180,140,.06), 0 10px 40px rgba(0,0,0,.5);
+}
+.wk{
+  position:relative; flex:1;
+  background:linear-gradient(180deg,#f6f2ec 0%,#e8e2da 88%,#d8d1c7 100%);
+  border-right:1px solid rgba(0,0,0,.10);
+  border-radius:0 0 6px 6px;
+  transition:background .06s ease, box-shadow .12s ease, transform .06s ease;
+  cursor:pointer;
+}
+.wk:last-child{border-right:none}
+.wk.down{
+  background:linear-gradient(180deg,#ffe0c4 0%,#ffc79c 70%,#ffb98a 100%);
+  box-shadow:inset 0 -22px 34px rgba(255,150,100,.42), 0 0 26px rgba(255,170,120,.5);
+  transform:translateY(1.5px);
+}
+.bk{
+  position:absolute; top:0; z-index:2;
+  width:calc(100% / 15 * 0.62);
+  height:61%;
+  background:linear-gradient(180deg,#1e2430 0%,#0e1219 86%,#080b10 100%);
+  border-radius:0 0 5px 5px;
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow:0 4px 12px rgba(0,0,0,.6), inset 0 -6px 10px rgba(255,255,255,.04);
+  transition:background .06s ease, box-shadow .12s ease, transform .06s ease;
+  cursor:pointer;
+}
+.bk.down{
+  background:linear-gradient(180deg,#7a5a44 0%,#4a3326 80%,#31211a 100%);
+  box-shadow:0 0 22px rgba(255,170,120,.55), inset 0 -6px 12px rgba(255,190,150,.25);
+  transform:translateY(1.5px);
+}
+
+/* 底部操作 */
+#bar{
+  flex:none; display:flex; gap:8px; align-items:center;
+  padding:10px 18px calc(12px + env(safe-area-inset-bottom)) 18px;
+  z-index:3;
+}
+#bar button{
+  flex:none; padding:.62em 1.1em; border-radius:var(--m); cursor:pointer;
+  background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--dim);
+  font-family:inherit; font-size:12px; letter-spacing:.14em;
+  transition:.24s var(--e);
+}
+#bar button:hover{background:rgba(255,255,255,.10); color:var(--ink); border-color:rgba(255,255,255,.26)}
+#bar button:active{transform:scale(.97)}
+#bar button.on{
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a); color:#241208;
+  border-color:transparent;
+}
+#bar .sp{flex:1}
+#bar .info{font-size:11px; letter-spacing:.16em; color:var(--soft)}
+
+@media (max-width:480px){
+  #keysWrap{height:min(42vh, 240px)}
+  #bar{padding:8px 12px calc(10px + env(safe-area-inset-bottom)) 12px}
+  #bar button{padding:.55em .9em; font-size:11px; letter-spacing:.1em}
+}
+</style>
+</head>
+<body>
+
+<div id="glow"></div>
+<canvas id="fx"></canvas>
+
+<div id="top">
+  <span>电子琴</span>
+  <span class="st" id="st">停下来弹一会儿</span>
+  <a href="../">回去</a>
+</div>
+
+<div id="hint" id="hint">按下任何一个键</div>
+
+<div id="keysWrap"><div id="keys"></div></div>
+
+<div id="bar">
+  <button id="rec">录一段</button>
+  <button id="clr">清空</button>
+  <span class="sp"></span>
+  <span class="info" id="cnt">0 个音</span>
+  <button id="replay">回放</button>
+  <button id="send">弹给她听</button>
+</div>
+
+<script>
+/* ==========================================================
+   电子琴 —— Web Audio 复音合成 + 粒子特效
+   支持多指同时按（每个 pointerId 一个音）
+   ========================================================== */
+const $ = (id) => document.getElementById(id);
+
+const OCTAVES = 2;             // 两个八度
+const START = 60;              // C4
+const WHITE = [0, 2, 4, 5, 7, 9, 11];
+const BLACK = [1, 3, 6, 8, 10];
+const WHITE_INDEX = { 0:0, 2:1, 4:2, 5:3, 7:4, 9:5, 11:6 };
+
+const KEYS = [];
+for (let o = 0; o < OCTAVES; o++){
+  WHITE.forEach(s => KEYS.push({ midi: START + o*12 + s, black: false, semi: s }));
+}
+const whiteCount = KEYS.length;
+
+/* ---------------- 音频 ---------------- */
+let AC = null, master = null, verb = null, lp = null;
+
+function ensureAudio(){
+  if (AC) return AC;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  AC = new Ctx();
+
+  master = AC.createGain();
+  master.gain.value = 0.9;
+
+  lp = AC.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 4200;
+  lp.Q.value = 0.5;
+
+  verb = AC.createConvolver();
+  verb.buffer = impulse(1.9, 2.6);
+
+  const wet = AC.createGain(); wet.gain.value = 0.26;
+  const dry = AC.createGain(); dry.gain.value = 0.85;
+
+  master.connect(lp);
+  lp.connect(dry); dry.connect(AC.destination);
+  lp.connect(verb); verb.connect(wet); wet.connect(AC.destination);
+  return AC;
+}
+
+function impulse(sec, decay){
+  const rate = AC.sampleRate, len = Math.floor(rate * sec);
+  const b = AC.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++){
+    const d = b.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, decay);
+  }
+  return b;
+}
+
+const voices = new Map();      // pointerId -> {osc1, osc2, gain, midi, timer}
+
+
+/* ================= 加法钢琴 =================
+   真实钢琴的四个特征，都用得起：
+     ① 泛音    不是一根正弦，是八个泛音叠起来
+     ② 衰减    高泛音衰减更快（所以听起来先亮后暖）
+     ③ 刚性    f_n = n·f0·√(1+B·n²)，泛音略微偏高
+     ④ 敲击    起音那一瞬有 20 毫秒的木头声
+   ============================================ */
+
+const PARTIALS = [
+  // [泛音倍数, 振幅, 衰减快慢（越大掉得越快）]
+  [1,  1.000, 1.00],
+  [2,  0.520, 1.45],
+  [3,  0.300, 2.00],
+  [4,  0.180, 2.60],
+  [5,  0.115, 3.30],
+  [6,  0.072, 4.10],
+  [8,  0.042, 5.60],
+  [10, 0.026, 7.20],
+];
+const INHARM = 0.00035;          // 弦刚性系数
+
+let _hammerBuf = null;
+function hammerBuffer(){
+  if (_hammerBuf) return _hammerBuf;
+  const rate = AC.sampleRate;
+  const len = Math.floor(rate * 0.028);
+  const b = AC.createBuffer(1, len, rate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < len; i++){
+    const t = i / len;
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.2);
+  }
+  _hammerBuf = b;
+  return b;
+}
+
+/* 造一个钢琴音，返回 { nodes:[...], stop(t) } */
+function pianoVoice(midi, when, baseDur, vel){
+  const f0 = 440 * Math.pow(2, (midi - 69) / 12);
+  const nodes = [];
+  const gains = [];
+
+  for (const [n, amp, fast] of PARTIALS){
+    const f = n * f0 * Math.sqrt(1 + INHARM * n * n);
+    if (f > AC.sampleRate * 0.45) continue;      // 超过奈奎斯特就不发
+
+    const g = AC.createGain();
+    const peak = amp * vel * 0.34;
+    // 高泛音在力度大时更明显 → 弹得重，声音更亮
+    const bright = 1 + (vel - 0.25) * (n > 4 ? 1.6 : 0.5);
+
+    const tau = Math.max(0.06, baseDur / fast);
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak * bright, when + 0.004);
+    g.gain.exponentialRampToValueAtTime(peak * bright * 0.30, when + tau * 0.28);
+    g.gain.exponentialRampToValueAtTime(0.00005, when + tau);
+
+    const o = AC.createOscillator();
+    o.type = "sine";
+    o.frequency.value = f;
+    o.detune.value = (Math.random() - 0.5) * 3.2;   // 一点点不齐，像真弦
+
+    o.connect(g);
+    g.connect(master);
+    o.start(when);
+    o.stop(when + tau + 0.02);
+    nodes.push(o); gains.push(g);
+  }
+
+  // 敲击声
+  try {
+    const src = AC.createBufferSource();
+    src.buffer = hammerBuffer();
+    const bp = AC.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2600;
+    bp.Q.value = 0.9;
+    const hg = AC.createGain();
+    hg.gain.value = 0.05 * (0.4 + vel);
+    src.connect(bp); bp.connect(hg); hg.connect(master);
+    src.start(when);
+  } catch (e) {}
+
+  return {
+    nodes,
+    /* 松键：快速止音，像踏板松开 */
+    release(at){
+      const t = Math.max(at, AC.currentTime);
+      gains.forEach(g => {
+        try {
+          g.gain.cancelScheduledValues(t);
+          g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        } catch (e) {}
+      });
+      nodes.forEach(o => { try { o.stop(t + 0.22); } catch (e) {} });
+    },
+  };
+}
+
+function startNote(midi, pid, vel){
+  if (!ensureAudio()) return;
+  if (AC.state === "suspended") AC.resume();
+  const now = AC.currentTime;
+  const v = pianoVoice(midi, now, 3.2, vel);
+  voices.set(pid, { v, midi, at: now });
+}
+
+function endNote(pid){
+  const o = voices.get(pid);
+  if (!o) return;
+  voices.delete(pid);
+  try { o.v.release(AC.currentTime); } catch (e) {}
+}
+
+/* ---------------- 建键盘 ---------------- */
+const keysEl = $("keys");
+const whiteEls = [];
+
+KEYS.forEach((k, i) => {
+  const d = document.createElement("div");
+  d.className = "wk";
+  d.dataset.midi = k.midi;
+  d.dataset.i = i;
+  keysEl.appendChild(d);
+  whiteEls.push(d);
+});
+
+// 黑键：每个白键之后判断
+const blackEls = [];
+KEYS.forEach((k, i) => {
+  if (i >= whiteCount - 1) return;
+  const next = KEYS[i + 1];
+  const diff = next.midi - k.midi;
+  if (diff === 2){                       // 全音 → 中间有黑键
+    const midi = k.midi + 1;
+    const b = document.createElement("div");
+    b.className = "bk";
+    b.dataset.midi = midi;
+    // 位置：卡在第 i 个白键和 i+1 个白键之间
+    const pct = (i + 1) / whiteCount * 100;
+    b.style.left = "calc(" + pct + "% - (100% / " + whiteCount + " * 0.31))";
+    keysEl.appendChild(b);
+    blackEls.push(b);
+  }
+});
+
+/* ---------------- 粒子 ---------------- */
+const fx = $("fx"), ctx = fx.getContext("2d");
+const dpr = Math.min(devicePixelRatio || 1, 2);
+let W, H;
+function resize(){
+  W = fx.width = innerWidth * dpr;
+  H = fx.height = innerHeight * dpr;
+  fx.style.width = innerWidth + "px";
+  fx.style.height = innerHeight + "px";
+}
+addEventListener("resize", resize);
+resize();
+
+let parts = [];
+const N = 22;
+
+function burst(x, y, midi){
+  const r = Math.max(0, Math.min(1, (midi - 48) / 36));
+  const hue = 248 - r * 226;             // 低音蓝紫 → 高音橙
+  const power = 1.1 + r * 1.5;
+  for (let i = 0; i < N; i++){
+    const a = -Math.PI/2 + (Math.random() - .5) * 1.5;
+    const sp = (1.2 + Math.random() * 3.2) * power * dpr;
+    parts.push({
+      x: x * dpr, y: y * dpr,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp,
+      r: (0.8 + Math.random() * 2.0) * dpr,
+      life: 0,
+      max: 46 + Math.random() * 46,
+      hue: hue + (Math.random() - .5) * 26,
+    });
+  }
+  if (parts.length > 900) parts = parts.slice(-900);
+
+  // 背景光晕跟着变
+  $("glow").style.background =
+    "radial-gradient(90% 60% at 50% 100%, hsla(" + hue.toFixed(0) + ",90%,62%,.10) 0%, transparent 66%)";
+}
+
+function frame(){
+  ctx.clearRect(0, 0, W, H);
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = parts.length - 1; i >= 0; i--){
+    const p = parts[i];
+    p.life++;
+    p.vy += 0.045 * dpr;             // 轻微重力，先升后落
+    p.vx *= 0.985;
+    p.x += p.vx; p.y += p.vy;
+
+    const t = p.life / p.max;
+    if (t >= 1){ parts.splice(i, 1); continue; }
+
+    const alpha = (1 - t) * 0.85;
+    const rr = p.r * (1 - t * 0.5);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr * 4);
+    g.addColorStop(0, "hsla(" + p.hue + ",92%,74%," + alpha + ")");
+    g.addColorStop(1, "hsla(" + p.hue + ",92%,60%,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, rr * 4, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over";
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------------- 交互 ---------------- */
+const downSet = new Set();
+let recOn = false, recorded = [], recStart = 0, noteCount = 0;
+
+function hit(el, pid, ev){
+  const midi = parseInt(el.dataset.midi, 10);
+  if (downSet.has(pid)) return;
+  downSet.add(pid);
+  el.classList.add("down");
+  el.dataset.pid = pid;
+
+  const vel = 0.30 + Math.random() * 0.10;
+  startNote(midi, pid, vel);
+
+  const r = el.getBoundingClientRect();
+  burst(r.left + r.width / 2, r.top + r.height * 0.72, midi);
+
+  noteCount++;
+  $("cnt").textContent = noteCount + " 个音";
+  $("hint").classList.add("gone");
+
+  if (recOn){
+    recorded.push({ midi, t: (performance.now() - recStart) / 1000 });
+  }
+}
+
+document.querySelectorAll(".wk, .bk").forEach(el => {
+  el.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    el.setPointerCapture && el.setPointerCapture(ev.pointerId);
+    hit(el, ev.pointerId, ev);
+  });
+  el.addEventListener("pointerup", (ev) => {
+    ev.preventDefault();
+    downSet.delete(ev.pointerId);
+    el.classList.remove("down");
+    endNote(ev.pointerId);
+  });
+  el.addEventListener("pointercancel", (ev) => {
+    downSet.delete(ev.pointerId);
+    el.classList.remove("down");
+    endNote(ev.pointerId);
+  });
+  el.addEventListener("pointerleave", (ev) => {
+    if (!downSet.has(ev.pointerId)) return;
+    downSet.delete(ev.pointerId);
+    el.classList.remove("down");
+    endNote(ev.pointerId);
+  });
+});
+
+/* ---------------- 录音 ---------------- */
+$("rec").addEventListener("click", () => {
+  recOn = !recOn;
+  $("rec").classList.toggle("on", recOn);
+  if (recOn){
+    recorded = []; recStart = performance.now();
+    $("st").textContent = "录着……再按一次停";
+  } else {
+    $("st").textContent = recorded.length ? "录了 " + recorded.length + " 个音" : "停下来弹一会儿";
+  }
+});
+
+$("clr").addEventListener("click", () => {
+  recorded = []; noteCount = 0;
+  $("cnt").textContent = "0 个音";
+  $("st").textContent = "清空了";
+  parts = [];
+});
+
+/* ---- 回放刚才录的 ---- */
+let replayTimers = [];
+$("replay").addEventListener("click", () => {
+  if (!recorded.length){ $("st").textContent = "还没录到东西"; return; }
+  replayTimers.forEach(clearTimeout); replayTimers = [];
+  const t0 = performance.now();
+  recorded.forEach(n => {
+    replayTimers.push(setTimeout(() => {
+      startNote(n.midi, "rp" + n.t, 0.30);
+      const el = document.querySelector('[data-midi="' + n.midi + '"]');
+      if (el){
+        el.classList.add("down");
+        const r = el.getBoundingClientRect();
+        burst(r.left + r.width/2, r.top + r.height*0.72, n.midi);
+        replayTimers.push(setTimeout(() => {
+          el.classList.remove("down");
+          endNote("rp" + n.t);
+        }, 220));
+      }
+    }, n.t * 1000));
+  });
+  const end = recorded[recorded.length-1].t * 1000 + 400;
+  replayTimers.push(setTimeout(() => { $("st").textContent = "回放完了"; }, end));
+  $("st").textContent = "回放中……";
+});
+
+$("send").addEventListener("click", async () => {
+  if (!recorded.length){
+    $("st").textContent = "还没录到东西";
+    return;
+  }
+  const uid = localStorage.getItem("pn_uid") || "";
+  const per = localStorage.getItem("pn_persona") || "";
+  const strip = recorded.slice(0, 200);
+
+  // 永远先存本地一份
+  localStorage.setItem("keystrip_" + Date.now(), JSON.stringify({
+    at: new Date().toISOString(), notes: strip,
+  }));
+
+  if (!uid || !per){
+    $("st").textContent = "存下了（没登录，只有本地这份）";
+    return;
+  }
+
+  $("st").textContent = "给她听……";
+  try {
+    const r = await fetch("/api/melody", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ user_id: uid, persona: per, notes: strip, who: "me" })
+    });
+    const d = await r.json();
+    $("st").textContent = d.ok
+      ? ("她记住了：" + (d.seq || "") + "（" + d.count + " 个音）")
+      : ("没记住：" + (d.error || ""));
+  } catch (e){
+    $("st").textContent = "存下了（网络没通）";
+  }
+});
+
+/* ---------------- 键盘快捷键（电脑） ---------------- */
+const KEYMAP = {
+  a: 60, w: 61, s: 62, e: 63, d: 64, f: 65, t: 66,
+  g: 67, y: 68, h: 69, u: 70, j: 71, k: 72, o: 73, l: 74,
+};
+addEventListener("keydown", (ev) => {
+  if (ev.repeat) return;
+  const m = KEYMAP[ev.key.toLowerCase()];
+  if (m === undefined) return;
+  const el = document.querySelector('[data-midi="' + m + '"]');
+  if (el && !downSet.has("kb" + m)) {
+    downSet.add("kb" + m);
+    el.classList.add("down");
+    startNote(m, "kb" + m, 0.32);
+    const r = el.getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top + r.height * 0.7, m);
+    noteCount++; $("cnt").textContent = noteCount + " 个音";
+    $("hint").classList.add("gone");
+    if (recOn) recorded.push({ midi: m, t: (performance.now() - recStart) / 1000 });
+  }
+});
+addEventListener("keyup", (ev) => {
+  const m = KEYMAP[ev.key.toLowerCase()];
+  if (m === undefined) return;
+  const el = document.querySelector('[data-midi="' + m + '"]');
+  if (el) el.classList.remove("down");
+  endNote("kb" + m);
+  downSet.delete("kb" + m);
+});
+
+/* 切后台停止所有音 */
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden){
+    [...voices.keys()].forEach(endNote);
+    downSet.clear();
+    document.querySelectorAll(".down").forEach(e => e.classList.remove("down"));
+  }
+});
+</script>
+</body>
+</html>

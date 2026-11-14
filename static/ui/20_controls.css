@@ -1,0 +1,110 @@
+/* ==========================================================
+   20_controls.css —— 圆角矩形统一 + 点击感
+   把 Gradio 默认的方角/胶囊按钮，全部收到四档圆角里。
+   ========================================================== */
+
+/* ---------- 按钮 ---------- */
+.gradio-container button,
+.gradio-container .gr-button{
+  border-radius: var(--r-m) !important;
+  transition: transform var(--t-fast) var(--e-out),
+              background var(--t-mid) var(--e-out),
+              border-color var(--t-mid) var(--e-out),
+              box-shadow var(--t-mid) var(--e-out),
+              filter var(--t-mid) var(--e-out) !important;
+  will-change: transform;
+}
+
+.gradio-container button:hover{
+  filter: brightness(1.07);
+  box-shadow: var(--sh-1);
+}
+
+.gradio-container button:active{
+  transform: scale(.97);
+  box-shadow: none;
+  filter: brightness(.97);
+}
+
+/* 主按钮（发送、注册、登录这类）用更大的圆角 */
+.gradio-container button.primary,
+.gradio-container button.lg.primary{
+  border-radius: var(--r-m) !important;
+  box-shadow: 0 6px 20px rgba(255,150,100,.22);
+}
+.gradio-container button.primary:hover{
+  box-shadow: 0 8px 26px rgba(255,150,100,.32);
+}
+
+/* 药丸类（如果原来就是胶囊，保持胶囊但统一变量） */
+.gradio-container button.pill,
+.gradio-container .pill button{
+  border-radius: var(--r-full) !important;
+}
+
+/* ---------- 输入框 ---------- */
+.gradio-container textarea,
+.gradio-container input[type="text"],
+.gradio-container input[type="password"],
+.gradio-container input[type="number"],
+.gradio-container input[type="tel"]{
+  border-radius: var(--r-m) !important;
+  transition: border-color var(--t-mid) var(--e-out),
+              box-shadow var(--t-mid) var(--e-out),
+              background var(--t-mid) var(--e-out) !important;
+}
+
+.gradio-container textarea:focus,
+.gradio-container input:focus{
+  border-color: rgba(255,185,138,.55) !important;
+  box-shadow: 0 0 0 3px rgba(255,185,138,.14) !important;
+  outline: none !important;
+}
+
+/* ---------- 下拉 / 滑块 / 文件框 ---------- */
+.gradio-container .wrap-inner,
+.gradio-container .secondary-wrap,
+.gradio-container .gr-box,
+.gradio-container .block{
+  border-radius: var(--r-m) !important;
+}
+
+/* ---------- 卡片化的块（面板） ---------- */
+.gradio-container .gr-panel,
+.gradio-container .form{
+  border-radius: var(--r-l) !important;
+}
+
+/* ---------- 气泡区（聊天容器）---------- */
+.gradio-container .bubble-wrap,
+.gradio-container .message-wrap{
+  border-radius: var(--r-m) !important;
+}
+
+/* ---------- 滚动条 ---------- */
+.gradio-container ::-webkit-scrollbar-thumb{
+  border-radius: var(--r-full) !important;
+}
+
+/* ---------- 手机 ---------- */
+@media (max-width: 640px){
+  /* iOS 上小于 16px 会放大整页 */
+  .gradio-container textarea,
+  .gradio-container input{
+    font-size: 16px !important;
+  }
+  .gradio-container button{
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .gradio-container button,
+  .gradio-container textarea,
+  .gradio-container input{
+    transition: none !important;
+  }
+  .gradio-container button:active{
+    transform: none;
+  }
+}

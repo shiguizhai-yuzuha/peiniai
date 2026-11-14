@@ -1,0 +1,306 @@
+/* 陪你 AI —— 所有样式都在这里。改样式不用碰 Python。
+   2026-11-02 调过一轮：往"像微信"走，不往"像 AI"走。
+   原则：① 背景图要透出来 ② 字要读得清 ③ 手机上不加学习成本 */
+
+:root, .gradio-container {
+        --bg: transparent !important;
+        --background-fill-primary: transparent !important;
+        --background-fill-secondary: transparent !important;
+        --block-background-fill: transparent !important;
+        --input-background-fill: transparent !important;
+        --body-background-fill: transparent !important;
+        --panel-background-fill: transparent !important;
+        --border-color-primary: transparent !important;
+        --border-color-accent: transparent !important;
+        --block-border-color: transparent !important;
+        --block-radius: 0 !important;
+        --block-shadow: none !important;
+    }
+
+    .gradio-container .gr-group,
+    .gradio-container .gr-box,
+    .gradio-container .gr-form,
+    .gradio-container .gr-panel,
+    .gradio-container .gr-block,
+    .gradio-container .block,
+    .gradio-container .form,
+    .gradio-container .panel,
+    .gradio-container .contain,
+    .gradio-container .tabs,
+    .gradio-container .tab-nav,
+    .gradio-container .tabitem,
+    .gradio-container .input-container,
+    .gradio-container .textbox-wrapper {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }
+
+    /* ---------- 全局字体 ---------- */
+
+    .gradio-container {
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                     "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI",
+                     Roboto, sans-serif !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ---------- 聊天气泡：外壳全部清空 ---------- */
+
+    #chatbot .message-wrap,
+    #chatbot .message-row,
+    #chatbot .flex-wrap,
+    #chatbot .message-content,
+    #chatbot .bubble,
+    #chatbot .bubble > div,
+    #chatbot .md,
+    #chatbot .prose {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* 对方：白气泡，左侧，尾巴在下左 */
+    #chatbot .message.bot,
+    #chatbot msg.bot {
+        background-color: rgba(255, 255, 255, 0.96) !important;
+        color: #16181c !important;
+        border: 1px solid rgba(0, 0, 0, 0.06) !important;
+        border-radius: 10px 10px 10px 3px !important;
+        padding: 10px 13px !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+        max-width: 78% !important;
+        margin: 3px auto 3px 6px !important;
+        align-self: flex-start !important;
+        font-size: 15px !important;
+        line-height: 1.62 !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+    }
+
+    /* 自己：微信绿，右侧，尾巴在下右 */
+    #chatbot .message.user,
+    #chatbot msg.user {
+        background-color: #95ec69 !important;
+        color: #111 !important;
+        border: 1px solid rgba(0, 0, 0, 0.04) !important;
+        border-radius: 10px 10px 3px 10px !important;
+        padding: 10px 13px !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+        max-width: 78% !important;
+        margin: 3px 6px 3px auto !important;
+        align-self: flex-end !important;
+        font-size: 15px !important;
+        line-height: 1.62 !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+    }
+
+    #chatbot .message.bot *,
+    #chatbot .message.user * {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        word-break: normal !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+    }
+
+    /* 多段回复（<msg> 拆出来的）：不要变成一坨方框，段间给一点呼吸 */
+    #chatbot .message.bot:has(.message.bot),
+    #chatbot .message.user:has(.message.user) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+    }
+
+    /* 气泡之间的空隙（Gradio 6 里消息外面还包了一层） */
+    #chatbot .message {
+        margin-bottom: 2px !important;
+    }
+
+    /* ---------- 输入区 ---------- */
+
+    .gradio-container textarea,
+    .gradio-container input[type="text"],
+    .gradio-container input[type="password"] {
+        background-color: rgba(255, 255, 255, 0.97) !important;
+        border: 1px solid rgba(0, 0, 0, 0.08) !important;
+        border-radius: 12px !important;
+        color: #16181c !important;
+        /* 16px 是 iOS 的底线：小于它，点输入框整页会放大 */
+        font-size: 16px !important;
+        line-height: 1.5 !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .gradio-container textarea:focus,
+    .gradio-container input[type="text"]:focus {
+        border-color: #95ec69 !important;
+        box-shadow: 0 0 0 2px rgba(149, 236, 105, 0.28) !important;
+        outline: none !important;
+    }
+
+    .gradio-container button.primary {
+        background-color: #95ec69 !important;
+        color: #111 !important;
+        border: none !important;
+        border-radius: 12px !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .gradio-container button.primary:hover {
+        background-color: #86dd5c !important;
+    }
+
+    /* 手机上别让键盘把输入框顶飞 */
+    .gradio-container {
+        padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    }
+
+    /* ---------- 只给记忆面板和"让谁记住"下拉加实心底 ---------- */
+
+    [id^="memg"],
+    #pin-target {
+        background-color: rgba(255, 255, 255, 0.94) !important;
+        border: 1px solid #d8dbe0 !important;
+        border-radius: 10px !important;
+    }
+
+    [id^="memg"] label,
+    [id^="memg"] span,
+    #pin-target,
+    #pin-target input,
+    #pin-target span {
+        color: #20242b !important;
+    }
+
+    [id^="memg"] input[type="checkbox"] {
+        accent-color: #c8553d !important;
+    }
+
+    #persona-select,
+    #pin-target {
+        background-color: rgba(255, 255, 255, 0.94) !important;
+        border: 1px solid #d8dbe0 !important;
+        border-radius: 10px !important;
+    }
+    #persona-select,
+    #persona-select *,
+    #pin-target,
+    #pin-target * {
+        color: #20242b !important;
+    }
+
+    ul.options,
+    .dropdown-menu,
+    [role="listbox"],
+    ul[class*="option"],
+    div[class*="option-menu"] {
+        background-color: #ffffff !important;
+        border: 1px solid #d8dbe0 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .14) !important;
+    }
+
+    ul.options li,
+    .dropdown-menu li,
+    [role="option"],
+    ul[class*="option"] li {
+        background-color: #ffffff !important;
+        color: #20242b !important;
+    }
+
+    ul.options li *,
+    .dropdown-menu li *,
+    [role="option"] * {
+        background-color: transparent !important;
+        color: #20242b !important;
+    }
+
+    ul.options li:hover,
+    .dropdown-menu li:hover,
+    [role="option"]:hover,
+    ul.options li.selected {
+        background-color: #eef2f6 !important;
+    }
+
+    /* ---------- 正在输入 ---------- */
+
+    #typing-status {
+        min-height: 20px;
+        margin: 2px 0 4px 12px;
+        font-size: 12px;
+        line-height: 20px;
+        color: #6b7280 !important;
+        letter-spacing: .04em;
+    }
+    #typing-status p { margin: 0 !important; }
+
+    /* ---------- 滚动条：细一点，别抢戏 ---------- */
+
+    #chatbot ::-webkit-scrollbar,
+    .gradio-container ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+    #chatbot ::-webkit-scrollbar-thumb,
+    .gradio-container ::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.16);
+        border-radius: 3px;
+    }
+    #chatbot ::-webkit-scrollbar-track,
+    .gradio-container ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    footer { display: none !important; }
+
+    /* ==========================================================
+       手机端：气泡更宽、字更大、间距更紧
+       ========================================================== */
+    @media (max-width: 640px) {
+        #chatbot .message.bot,
+        #chatbot .message.user {
+            max-width: 84% !important;
+            font-size: 16px !important;
+            padding: 9px 12px !important;
+        }
+
+        #chatbot .message.bot {
+            margin-left: 4px !important;
+        }
+        #chatbot .message.user {
+            margin-right: 4px !important;
+        }
+
+        .gradio-container textarea {
+            font-size: 16px !important;
+        }
+
+        #typing-status {
+            margin-left: 8px;
+        }
+    }
+
+    /* 平板/桌面：稍微收一点，别让一行太长 */
+    @media (min-width: 1024px) {
+        #chatbot .message.bot,
+        #chatbot .message.user {
+            max-width: 62% !important;
+        }
+    }

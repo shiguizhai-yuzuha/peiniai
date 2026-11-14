@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>她说话的样子</title>
+<style>
+:root{
+  --bg:#f7f8fb; --card:#fff; --ink:#1f2329; --ink2:#646a73; --ink3:#9aa0a8;
+  --line:#e8eaf0; --accent:#4e6ef2; --accents:#eef1fe;
+  --ok:#2fa36b; --warn:#d97706; --bad:#d14343;
+  --r-s:8px; --r-m:12px; --r-l:16px; --r-full:999px;
+  --e:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px; line-height:1.75; padding:0 0 100px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:680px;margin:0 auto;padding:0 18px}
+
+/* ---------- 顶栏 ---------- */
+.top{
+  position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+  padding:14px 0 12px;margin-bottom:18px;
+}
+.top .wrap{display:flex;align-items:center;justify-content:space-between}
+.top h1{font-size:17px;font-weight:600;letter-spacing:.02em}
+.top a{font-size:13px;color:var(--ink3);text-decoration:none}
+.top a:hover{color:var(--accent)}
+
+/* ---------- 免责 ---------- */
+.notice{
+  background:#fff; border:1px solid var(--line); border-left:3px solid var(--accent);
+  border-radius:var(--r-m); padding:14px 16px; margin-bottom:26px;
+  font-size:13.5px; line-height:1.85; color:var(--ink2);
+}
+.notice b{color:var(--ink);font-weight:600}
+
+/* ---------- 分节 ---------- */
+.sec{margin-bottom:30px}
+.sec>h2{
+  font-size:13px;font-weight:600;color:var(--ink3);letter-spacing:.08em;
+  margin-bottom:14px;display:flex;align-items:center;gap:10px;
+}
+.sec>h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ---------- 两轴：胶囊选择 ---------- */
+.axis{display:flex;gap:10px;margin-bottom:20px}
+.opt{
+  flex:1;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r-m);
+  padding:14px 8px 12px;text-align:center;cursor:pointer;
+  transition:.22s var(--e); position:relative; overflow:hidden;
+}
+.opt:hover{border-color:#c9d2f5;transform:translateY(-1px)}
+.opt .nm{font-size:15px;font-weight:600;margin-bottom:3px}
+.opt .sb{font-size:11.5px;color:var(--ink3);letter-spacing:.02em}
+.opt.on{
+  border-color:var(--accent); background:var(--accents);
+  box-shadow:0 0 0 4px rgba(78,110,242,.08);
+}
+.opt.on .nm{color:var(--accent)}
+.opt.on .sb{color:#7d8bd6}
+.opt .tick{
+  position:absolute;top:8px;right:10px;font-size:11px;color:var(--accent);
+  opacity:0;transition:.2s var(--e);
+}
+.opt.on .tick{opacity:1}
+
+/* ---------- 预览 ---------- */
+.preview{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:16px 16px 12px;
+}
+.preview .ph{font-size:11.5px;color:var(--ink3);letter-spacing:.06em;margin-bottom:12px}
+.bub{
+  background:#f2f4fa;border-radius:14px 14px 14px 4px;
+  padding:10px 14px;margin-bottom:8px;max-width:88%;
+  font-size:15px;line-height:1.7;color:var(--ink);
+  animation:pop .3s var(--e) both;
+}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.preview .sum{
+  font-size:11.5px;color:var(--ink3);margin-top:10px;padding-top:10px;
+  border-top:1px dashed var(--line);letter-spacing:.03em;
+}
+.preview .sum b{color:var(--ink2);font-weight:600}
+.hint{
+  font-size:12.5px;color:#8a6d3b;background:#fdf6e8;border-radius:var(--r-s);
+  padding:9px 12px;margin-top:12px;line-height:1.7;
+}
+.hint em{font-style:normal;color:#6b5320;font-weight:600}
+
+/* ---------- 开关 ---------- */
+.sw{
+  display:flex;gap:12px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r-m);padding:14px 15px;margin-bottom:10px;
+  cursor:pointer;transition:.2s var(--e);
+}
+.sw:hover{border-color:#c9d2f5}
+.sw.off{opacity:.45;cursor:not-allowed}
+.sw.off:hover{border-color:var(--line)}
+.box{
+  flex:none;width:22px;height:22px;border-radius:6px;border:1.5px solid #d3d6dd;
+  background:#fff;margin-top:1px;display:grid;place-items:center;
+  transition:.2s var(--e);
+}
+.sw.on .box{background:var(--accent);border-color:var(--accent)}
+.box svg{opacity:0;transform:scale(.6);transition:.2s var(--e)}
+.sw.on .box svg{opacity:1;transform:none}
+.sw .tx{flex:1}
+.sw .tx .t{font-size:14.5px;font-weight:600;margin-bottom:2px}
+.sw .tx .d{font-size:12.5px;color:var(--ink2);line-height:1.7}
+.sw .tx .lock{font-size:11.5px;color:var(--warn);margin-top:4px;display:none}
+.sw.off .tx .lock{display:block}
+
+/* ---------- 高级 ---------- */
+.adv-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:14px 15px;cursor:pointer;transition:.2s var(--e);
+}
+.adv-toggle:hover{border-color:#c9d2f5}
+.adv-toggle .t{font-size:14.5px;font-weight:600}
+.adv-toggle .d{font-size:12px;color:var(--ink3);margin-top:2px}
+.adv-toggle .arw{transition:.25s var(--e);color:var(--ink3);font-size:12px}
+.adv-toggle.open .arw{transform:rotate(180deg)}
+
+#adv{display:none;margin-top:14px}
+#adv.open{display:block;animation:slide .3s var(--e) both}
+@keyframes slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* ---------- 滑块卡 ---------- */
+.sl{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:16px;margin-bottom:12px;
+}
+.sl .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.sl .hd .nm{font-size:14px;font-weight:600}
+.sl .num{
+  width:78px;text-align:center;font-size:14px;font-variant-numeric:tabular-nums;
+  border:1px solid var(--line);border-radius:var(--r-s);padding:4px 6px;
+  font-family:inherit;color:var(--ink);background:#fbfcfe;
+  transition:.2s var(--e);
+}
+.sl .num:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(78,110,242,.1)}
+.sl .num.bad{border-color:var(--bad);animation:shake .3s}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+
+/* 轨道 */
+.track{
+  position:relative;height:34px;margin:24px 0 6px;
+  display:flex;align-items:center;cursor:pointer;touch-action:none;
+}
+.rail{
+  position:absolute;left:0;right:0;height:6px;border-radius:99px;
+  background:linear-gradient(90deg,#e6e9f2,#dfe3ef);
+}
+.fill{
+  position:absolute;left:0;height:6px;border-radius:99px;
+  background:linear-gradient(90deg,#6d8bff,#4e6ef2);
+  transition:width .12s linear;
+  box-shadow:0 0 8px rgba(78,110,242,.35);
+}
+.rec{ /* 推荐值刻度 */
+  position:absolute;top:0;width:2px;height:6px;border-radius:2px;
+  background:var(--ok);opacity:.55;
+}
+.rec::after{
+  content:"推荐";position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-size:9.5px;color:var(--ok);white-space:nowrap;opacity:.9;
+}
+.knob{
+  position:absolute;top:50%;width:22px;height:22px;border-radius:50%;
+  background:#fff;border:3px solid var(--accent);
+  transform:translate(-50%,-50%);
+  box-shadow:0 2px 8px rgba(78,110,242,.35);
+  transition:transform .15s var(--e), box-shadow .2s var(--e);
+  will-change:left;
+}
+.track.drag .knob{transform:translate(-50%,-50%) scale(1.18);box-shadow:0 0 0 10px rgba(78,110,242,.12),0 3px 12px rgba(78,110,242,.4)}
+.track:hover .knob{box-shadow:0 0 0 8px rgba(78,110,242,.08),0 2px 8px rgba(78,110,242,.35)}
+.bubble{
+  position:absolute;top:-30px;transform:translateX(-50%);
+  background:var(--ink);color:#fff;font-size:11.5px;padding:3px 9px;border-radius:6px;
+  opacity:0;transition:opacity .18s var(--e);pointer-events:none;white-space:nowrap;
+}
+.track.drag .bubble,.track:hover .bubble{opacity:1}
+.bubble::after{
+  content:"";position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);
+  border:4px solid transparent;border-top-color:var(--ink);
+}
+
+/* 刻度词 */
+.ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3);letter-spacing:.02em}
+.now{font-size:12px;color:var(--ink2);margin-top:8px}
+.now b{color:var(--accent);font-weight:600}
+.now .man{
+  font-size:10.5px;background:var(--accents);color:var(--accent);
+  padding:1px 7px;border-radius:99px;margin-left:6px;cursor:pointer;
+}
+
+/* ---------- 底部条 ---------- */
+.bar{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);padding:12px 0 env(safe-area-inset-bottom);
+}
+.bar .wrap{display:flex;gap:10px}
+.btn{
+  flex:1;height:48px;border-radius:var(--r-full);border:1px solid var(--line);
+  background:#fff;color:var(--ink2);font-family:inherit;font-size:15px;
+  cursor:pointer;transition:.2s var(--e);
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;flex:1.6}
+.btn.pri:hover{filter:brightness(1.06)}
+
+/* toast */
+#toast{
+  position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(8px);
+  background:var(--ok);color:#fff;padding:9px 20px;border-radius:99px;
+  font-size:13px;opacity:0;pointer-events:none;transition:.28s var(--e);z-index:40;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:420px){
+  .axis{gap:7px}
+  .opt{padding:12px 4px 10px}
+  .opt .nm{font-size:14px}
+  .opt .sb{font-size:10.5px}
+}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="wrap">
+  <h1>她说话的样子</h1>
+  <a href="/home">返回</a>
+</div></div>
+
+<div class="wrap">
+
+  <div class="notice">
+    <b>这些设置会改变她说话的样子。</b><br>
+    默认值是调过的。看不懂就别动——动了也能退回来。
+  </div>
+
+  <!-- ========== 一、发几条 ========== -->
+  <div class="sec">
+    <h2>一、发几条</h2>
+    <div class="axis" id="ax1">
+      <div class="opt" data-v="few">
+        <div class="tick">✓</div><div class="nm">少</div><div class="sb">1–2 条</div>
+      </div>
+      <div class="opt" data-v="mid">
+        <div class="tick">✓</div><div class="nm">正常</div><div class="sb">2–3 条</div>
+      </div>
+      <div class="opt" data-v="many">
+        <div class="tick">✓</div><div class="nm">多</div><div class="sb">3–6 条</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 二、每句多长 ========== -->
+  <div class="sec">
+    <h2>二、每句多长</h2>
+    <div class="axis" id="ax2">
+      <div class="opt" data-v="short">
+        <div class="tick">✓</div><div class="nm">短</div><div class="sb">≤15 字</div>
+      </div>
+      <div class="opt" data-v="mid">
+        <div class="tick">✓</div><div class="nm">正常</div><div class="sb">15–40 字</div>
+      </div>
+      <div class="opt" data-v="long">
+        <div class="tick">✓</div><div class="nm">长</div><div class="sb">会成段</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 预览 ========== -->
+  <div class="sec">
+    <div class="preview">
+      <div class="ph">她会这样说</div>
+      <div id="pv"></div>
+      <div class="sum" id="sum"></div>
+    </div>
+    <div class="hint" id="essayHint" style="display:none">
+      想让她写<em>小作文</em>？把「发几条」选<em>少</em>、「每句多长」选<em>长</em>。
+    </div>
+  </div>
+
+  <!-- ========== 三、要不要更像人 ========== -->
+  <div class="sec">
+    <h2>三、要不要让她更像人</h2>
+
+    <div class="sw on" id="sw-sample">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx">
+        <div class="t">说话样本</div>
+        <div class="d">12 组真实对话。关掉她就回到没有样板的写法。</div>
+      </div>
+    </div>
+
+    <div class="sw on" id="sw-plain">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx">
+        <div class="t">说人话</div>
+        <div class="d">删掉 *轻轻一笑* 这种动作描写，把「似乎」改成「像」。</div>
+      </div>
+    </div>
+
+    <div class="sw" id="sw-terse">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx">
+        <div class="t">别啰嗦</div>
+        <div class="d">最多留两句，不追问，不总结。</div>
+        <div class="lock">打开之后，上面两个选择会被接管（不能选「多」和「长」）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 四、高级 ========== -->
+  <div class="sec">
+    <div class="adv-toggle" id="advBtn">
+      <div>
+        <div class="t">高级</div>
+        <div class="d">看得懂再动。看不懂就别开。</div>
+      </div>
+      <div class="arw">▾</div>
+    </div>
+
+    <div id="adv">
+      <div id="sliders"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="bar"><div class="wrap">
+  <button class="btn" id="reset">回到默认</button>
+  <button class="btn pri" id="save">保存</button>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   默认值 —— 出厂
+   ============================================================ */
+const DEF = {
+  rows: "mid",        // 发几条   few / mid / many
+  len:  "mid",        // 每句多长 short / mid / long
+  sample: true,       // 说话样本
+  plain:  true,       // 说人话
+  terse:  false,      // 别啰嗦
+  temp:  0.80,
+  freq:  0.00,
+  pres:  0.00,
+  cap:   null         // null = 自动
+};
+
+/* 上限表：条数 × 每句长度 */
+const CAP = {
+  few:  { short: 60,  mid: 150, long: 600 },
+  mid:  { short: 90,  mid: 200, long: 700 },
+  many: { short: 200, mid: 400, long: 800 }
+};
+
+/* 示例句子池 */
+const SAMPLE_TEXT = {
+  few: {
+    short: ["嗯。", "那就先睡。"],
+    mid:   ["那就先睡。", "别熬了。"],
+    long:  ["其实我今天一直在想一件事。你上次说那句话的时候我没接，是因为我不知道怎么接。我怕我说错了，你就不说了。对不起。"]
+  },
+  mid: {
+    short: ["嗯。", "行。", "知道了。"],
+    mid:   ["那就先睡。", "别熬了。", "明天再说。"],
+    long:  ["我想了很久。你那天说的那句话，我其实听懂了，只是装作没听懂。", "我不是不在意。我是怕一开口，就收不住。"]
+  },
+  many: {
+    short: ["你听我说", "我今天", "特别想你", "真的"],
+    mid:   ["你听我说。", "我今天一直在想。", "特别想你。", "真的。"],
+    long:  ["你听我说。我今天一直在想一件事，想了一整天。你上次说的那句话，我到现在还记得。我不是不在意，我只是不知道怎么说。", "你别笑我。"]
+  }
+};
+
+let S = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem("voice_cfg");
+    if (!raw) return {...DEF};
+    return Object.assign({}, DEF, JSON.parse(raw));
+  }catch(e){ return {...DEF}; }
+}
+
+function save(){
+  localStorage.setItem("voice_cfg", JSON.stringify(S));
+}
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(window.__tt);
+  window.__tt = setTimeout(() => t.classList.remove("on"), 1500);
+}
+
+/* ============================================================
+   一、两轴
+   ============================================================ */
+function bindAxis(id, key){
+  const box = document.getElementById(id);
+  box.querySelectorAll(".opt").forEach(el => {
+    el.addEventListener("click", () => {
+      S[key] = el.dataset.v;
+      if (key === "rows" && S.terse && S[key] === "many") S.terse = false;
+      if (key === "len"  && S.terse && S[key] === "long") S.terse = false;
+      S.cap = null;                 // 手动改轴 → 上限回到自动
+      render();
+    });
+  });
+}
+
+function paintAxis(id, val){
+  document.getElementById(id).querySelectorAll(".opt").forEach(el => {
+    el.classList.toggle("on", el.dataset.v === val);
+  });
+}
+
+/* ============================================================
+   二、预览
+   ============================================================ */
+function renderPreview(){
+  const rows = S.terse ? "few" : S.rows;
+  let len = S.len;
+  if (S.terse && len === "long") len = "mid";
+
+  const lines = SAMPLE_TEXT[rows][len] || [];
+  const pv = document.getElementById("pv");
+  pv.innerHTML = "";
+
+  let chars = 0;
+  lines.forEach((s, i) => {
+    const d = document.createElement("div");
+    d.className = "bub";
+    d.style.animationDelay = (i * 60) + "ms";
+    d.textContent = s;
+    pv.appendChild(d);
+    chars += s.replace(/[。，、！？…\s]/g, "").length;
+  });
+
+  document.getElementById("sum").innerHTML =
+    "<b>" + lines.length + "</b> 条 · 共 <b>" + chars + "</b> 字" +
+    (S.cap ? "　·　上限 " + S.cap + "（手动）" : "");
+
+  // 小作文提示：少 + 长
+  document.getElementById("essayHint").style.display =
+    (rows === "few" && len === "long") ? "block" : "none";
+}
+
+/* ============================================================
+   三、开关
+   ============================================================ */
+function bindSwitch(id, key, after){
+  const el = document.getElementById(id);
+  el.addEventListener("click", () => {
+    if (el.classList.contains("off")) return;
+    S[key] = !S[key];
+    render();
+    if (after) after();
+  });
+}
+
+function paintSwitch(id, on, locked){
+  const el = document.getElementById(id);
+  el.classList.toggle("on", !!on);
+  el.classList.toggle("off", !!locked);
+}
+
+/* ============================================================
+   四、滑块
+   ============================================================ */
+const SLIDERS = [
+  { k:"temp", nm:"温度",        min:0.5, max:1.2, step:0.01, def:"0.80",
+    ticks:["稳","正常","飘"], rec:0.80,
+    now: v => v<=0.65 ? "很稳" : v<=0.85 ? "正常" : v<=1.0 ? "活泼" : "飘",
+    desc:"越高她说话越活，也越容易跑偏。" },
+  { k:"freq", nm:"别再重复",    min:0.0, max:0.8, step:0.05, def:"0.00",
+    ticks:["关","轻","强"], rec:0.40,
+    now: v => v<=0.001 ? "关" : v<=0.3 ? "轻" : v<=0.6 ? "中" : "强",
+    desc:"越高她越不爱反复用同一个词。" },
+  { k:"pres", nm:"别堆排比",    min:0.0, max:0.8, step:0.05, def:"0.00",
+    ticks:["关","轻","强"], rec:0.40,
+    now: v => v<=0.001 ? "关" : v<=0.3 ? "轻" : v<=0.6 ? "中" : "强",
+    desc:"越高她越不会写「很安静，很安静，很安静」。" },
+  { k:"cap",  nm:"回复上限",    min:60,  max:800, step:10,   def:"auto",
+    ticks:["短","自动","长"], rec:null,
+    now: v => v == null ? "自动" : String(v),
+    desc:"跟着上面两个轴自动算。手动拖动就会覆盖掉自动值。" }
+];
+
+function buildSliders(){
+  const box = document.getElementById("sliders");
+  box.innerHTML = "";
+  SLIDERS.forEach(cfg => {
+    const card = document.createElement("div");
+    card.className = "sl";
+    card.innerHTML =
+      '<div class="hd"><div class="nm">' + cfg.nm + '</div>' +
+      '<input class="num" id="num-' + cfg.k + '" type="text" inputmode="decimal"></div>' +
+      '<div class="track" id="tr-' + cfg.k + '">' +
+        '<div class="rail"></div><div class="fill"></div>' +
+        (cfg.rec != null ? '<div class="rec" style="left:' + pct(cfg, cfg.rec) + '%"></div>' : '') +
+        '<div class="knob"></div>' +
+        '<div class="bubble"></div>' +
+      '</div>' +
+      '<div class="ticks"><span>' + cfg.ticks[0] + '</span><span>' + cfg.ticks[1] + '</span><span>' + cfg.ticks[2] + '</span></div>' +
+      '<div class="now">现在：<b id="now-' + cfg.k + '"></b>' +
+        (cfg.k === "cap" ? '<span class="man" id="man-cap" style="display:none">手动 · 点我回自动</span>' : '') +
+        '　' + cfg.desc + '</div>';
+    box.appendChild(card);
+    wireSlider(cfg, card);
+  });
+}
+
+function pct(cfg, v){
+  return ((v - cfg.min) / (cfg.max - cfg.min)) * 100;
+}
+
+function wireSlider(cfg, card){
+  const tr = card.querySelector(".track");
+  const fill = card.querySelector(".fill");
+  const knob = card.querySelector(".knob");
+  const bub = card.querySelector(".bubble");
+  const num = card.querySelector(".num");
+  const nowEl = card.querySelector("#now-" + cfg.k);
+
+  function get(){
+    const v = S[cfg.k];
+    if (cfg.k === "cap") return v == null ? cfgAuto() : v;
+    return (v == null ? cfg.rec : v);
+  }
+
+  function set(v, manual){
+    if (cfg.k === "cap"){
+      S.cap = manual ? Math.round(v / 10) * 10 : null;
+    }else{
+      v = Math.min(cfg.max, Math.max(cfg.min, v));
+      S[cfg.k] = Math.round(v / cfg.step) * cfg.step;
+    }
+    paint();
+  }
+
+  function paint(){
+    const v = get();
+    const p = Math.min(100, Math.max(0, pct(cfg, v)));
+    fill.style.width = p + "%";
+    knob.style.left = p + "%";
+    bub.textContent = cfg.k === "cap" && S.cap == null ? "自动" : fmt(v);
+    bub.style.left = p + "%";
+    num.value = cfg.k === "cap" && S.cap == null ? "自动" : fmt(v);
+    nowEl.textContent = cfg.now(cfg.k === "cap" && S.cap == null ? null : v);
+    const man = card.querySelector("#man-cap");
+    if (man) man.style.display = S.cap == null ? "none" : "inline-block";
+  }
+
+  function fmt(v){
+    if (cfg.k === "cap") return String(Math.round(v));
+    return Number(v).toFixed(cfg.step >= 0.05 ? 2 : 2);
+  }
+
+  function fromEvent(e){
+    const r = tr.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const p = Math.min(1, Math.max(0, x / r.width));
+    return cfg.min + p * (cfg.max - cfg.min);
+  }
+
+  let dragging = false;
+  function down(e){
+    dragging = true;
+    tr.classList.add("drag");
+    set(fromEvent(e), true);
+    e.preventDefault();
+  }
+  function move(e){
+    if (!dragging) return;
+    set(fromEvent(e), true);
+    e.preventDefault();
+  }
+  function up(){
+    if (!dragging) return;
+    dragging = false;
+    tr.classList.remove("drag");
+    save(); renderPreview();
+  }
+
+  tr.addEventListener("mousedown", down);
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+  tr.addEventListener("touchstart", down, {passive:false});
+  window.addEventListener("touchmove", move, {passive:false});
+  window.addEventListener("touchend", up);
+
+  // 键盘：方向键微调
+  tr.tabIndex = 0;
+  tr.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
+      const d = (e.key === "ArrowRight" ? 1 : -1) * cfg.step;
+      set(get() + d, true);
+      save(); renderPreview();
+      e.preventDefault();
+    }
+  });
+
+  // 双击回推荐
+  tr.addEventListener("dblclick", () => {
+    if (cfg.k === "cap"){ S.cap = null; }
+    else { S[cfg.k] = cfg.rec; }
+    paint(); save(); renderPreview();
+  });
+
+  // 手动输入
+  num.addEventListener("change", () => {
+    const raw = num.value.trim();
+    if (cfg.k === "cap" && (raw === "自动" || raw === "")){
+      S.cap = null; paint(); save(); renderPreview(); return;
+    }
+    const v = parseFloat(raw);
+    if (isNaN(v)){
+      num.classList.add("bad");
+      setTimeout(() => num.classList.remove("bad"), 400);
+      paint(); return;
+    }
+    if (v < cfg.min || v > cfg.max){
+      num.classList.add("bad");
+      setTimeout(() => num.classList.remove("bad"), 400);
+      set(Math.min(cfg.max, Math.max(cfg.min, v)), true);
+    }else{
+      set(v, true);
+    }
+    save(); renderPreview();
+  });
+  num.addEventListener("blur", () => paint());
+
+  // 「手动 · 点我回自动」
+  const man = card.querySelector("#man-cap");
+  if (man) man.addEventListener("click", () => {
+    S.cap = null; paint(); save(); renderPreview();
+  });
+
+  card.__paint = paint;
+}
+
+function cfgAuto(){
+  const rows = S.terse ? "few" : S.rows;
+  let len = S.len;
+  if (S.terse && len === "long") len = "mid";
+  return CAP[rows][len];
+}
+
+/* ============================================================
+   总渲染
+   ============================================================ */
+function render(){
+  // 别啰嗦 接管两个轴
+  const locked = S.terse;
+
+  paintAxis("ax1", locked ? "few" : S.rows);
+  paintAxis("ax2", (locked && S.len === "long") ? "mid" : S.len);
+
+  document.querySelectorAll("#ax1 .opt").forEach(el => {
+    el.style.opacity = (locked && el.dataset.v !== "few") ? .35 : 1;
+    el.style.pointerEvents = locked ? "none" : "auto";
+  });
+  document.querySelectorAll("#ax2 .opt").forEach(el => {
+    el.style.opacity = (locked && el.dataset.v === "long") ? .35 : 1;
+    el.style.pointerEvents = (locked && el.dataset.v === "long") ? "none" : "auto";
+  });
+
+  paintSwitch("sw-sample", S.sample, false);
+  paintSwitch("sw-plain",  S.plain,  false);
+  paintSwitch("sw-terse",  S.terse,  false);
+
+  document.querySelectorAll(".sl").forEach(c => { if (c.__paint) c.__paint(); });
+  renderPreview();
+}
+
+/* ============================================================
+   绑定
+   ============================================================ */
+bindAxis("ax1", "rows");
+bindAxis("ax2", "len");
+bindSwitch("sw-sample", "sample");
+bindSwitch("sw-plain",  "plain");
+bindSwitch("sw-terse",  "terse");
+
+document.getElementById("advBtn").addEventListener("click", () => {
+  const b = document.getElementById("advBtn");
+  const a = document.getElementById("adv");
+  b.classList.toggle("open");
+  a.classList.toggle("open");
+  if (a.classList.contains("open") && !a.dataset.built){
+    buildSliders();
+    a.dataset.built = "1";
+    render();
+  }
+});
+
+document.getElementById("save").addEventListener("click", () => {
+  save();
+  toast("已保存，下一次说话就生效");
+});
+
+document.getElementById("reset").addEventListener("click", () => {
+  S = {...DEF};
+  save();
+  render();
+  toast("已回到默认");
+});
+
+render();
+</script>
+</body>
+</html>

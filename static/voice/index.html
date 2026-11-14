@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>她说话的样子</title>
+<style>
+:root{
+  --bg:#f7f8fb; --card:#fff; --ink:#1f2329; --ink2:#646a73; --ink3:#9aa0a8;
+  --line:#e8eaf0; --accent:#4e6ef2; --accents:#eef1fe;
+  --ok:#2fa36b; --warn:#d97706; --bad:#d14343;
+  --rail:rgba(15,17,21,.08);
+  --r-s:8px; --r-m:12px; --r-l:16px; --r-full:999px;
+  --e:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px; line-height:1.75; padding:0 0 100px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:680px;margin:0 auto;padding:0 18px}
+
+.top{
+  position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+  padding:14px 0 12px;margin-bottom:18px;
+}
+.top .wrap{display:flex;align-items:center;justify-content:space-between}
+.top h1{font-size:17px;font-weight:600;letter-spacing:.02em}
+.top .lk{display:flex;gap:14px}
+.top a{font-size:13px;color:var(--ink3);text-decoration:none}
+.top a:hover{color:var(--accent)}
+
+.notice{
+  background:#fff; border:1px solid var(--line); border-left:3px solid var(--accent);
+  border-radius:var(--r-m); padding:14px 16px; margin-bottom:26px;
+  font-size:13.5px; line-height:1.85; color:var(--ink2);
+}
+.notice b{color:var(--ink);font-weight:600}
+
+.sec{margin-bottom:30px}
+.sec>h2{
+  font-size:13px;font-weight:600;color:var(--ink3);letter-spacing:.08em;
+  margin-bottom:14px;display:flex;align-items:center;gap:10px;
+}
+.sec>h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.axis{display:flex;gap:10px;margin-bottom:20px}
+.axis.four .opt{padding:13px 4px 11px}
+.axis.four .opt .nm{font-size:13.5px}
+.axis.four .opt .sb{font-size:10.5px}
+.risk{
+  margin-top:-8px;margin-bottom:18px;font-size:12px;line-height:1.8;
+  color:#8a6d3b;background:#fdf6e8;border-radius:var(--r-s);padding:9px 12px;
+}
+.risk b{color:#6b5320}
+.opt{
+  flex:1;background:var(--card);border:1.5px solid var(--line);border-radius:var(--r-m);
+  padding:14px 8px 12px;text-align:center;cursor:pointer;
+  transition:.22s var(--e); position:relative; overflow:hidden;
+}
+.opt:hover{border-color:#c9d2f5;transform:translateY(-1px)}
+.opt .nm{font-size:15px;font-weight:600;margin-bottom:3px}
+.opt .sb{font-size:11.5px;color:var(--ink3);letter-spacing:.02em}
+.opt.on{
+  border-color:var(--accent); background:var(--accents);
+  box-shadow:0 0 0 4px rgba(78,110,242,.08);
+}
+.opt.on .nm{color:var(--accent)}
+.opt.on .sb{color:#7d8bd6}
+.opt .tick{
+  position:absolute;top:8px;right:10px;font-size:11px;color:var(--accent);
+  opacity:0;transition:.2s var(--e);
+}
+.opt.on .tick{opacity:1}
+
+.preview{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:16px 16px 12px;
+}
+.preview .ph{font-size:11.5px;color:var(--ink3);letter-spacing:.06em;margin-bottom:12px}
+.bub{
+  background:#f2f4fa;border-radius:14px 14px 14px 4px;
+  padding:10px 14px;margin-bottom:8px;max-width:88%;
+  font-size:15px;line-height:1.7;color:var(--ink);
+  animation:pop .3s var(--e) both;
+}
+@keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.preview .sum{
+  font-size:11.5px;color:var(--ink3);margin-top:10px;padding-top:10px;
+  border-top:1px dashed var(--line);letter-spacing:.03em;
+}
+.preview .sum b{color:var(--ink2);font-weight:600}
+.hint{
+  font-size:12.5px;color:#8a6d3b;background:#fdf6e8;border-radius:var(--r-s);
+  padding:9px 12px;margin-top:12px;line-height:1.7;
+}
+.hint em{font-style:normal;color:#6b5320;font-weight:600}
+
+.sw{
+  display:flex;gap:12px;align-items:flex-start;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r-m);padding:14px 15px;margin-bottom:10px;
+  cursor:pointer;transition:.2s var(--e);
+}
+.sw:hover{border-color:#c9d2f5}
+.sw.off{opacity:.45;cursor:not-allowed}
+.sw.off:hover{border-color:var(--line)}
+.box{
+  flex:none;width:22px;height:22px;border-radius:6px;border:1.5px solid #d3d6dd;
+  background:#fff;margin-top:1px;display:grid;place-items:center;
+  transition:.2s var(--e);
+}
+.sw.on .box{background:var(--accent);border-color:var(--accent)}
+.box svg{opacity:0;transform:scale(.6);transition:.2s var(--e)}
+.sw.on .box svg{opacity:1;transform:none}
+.sw .tx{flex:1}
+.sw .tx .t{font-size:14.5px;font-weight:600;margin-bottom:2px}
+.sw .tx .d{font-size:12.5px;color:var(--ink2);line-height:1.7}
+.sw .tx .lock{font-size:11.5px;color:var(--warn);margin-top:4px;display:none}
+.sw.off .tx .lock{display:block}
+
+.adv-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:14px 15px;cursor:pointer;transition:.2s var(--e);
+}
+.adv-toggle:hover{border-color:#c9d2f5}
+.adv-toggle .t{font-size:14.5px;font-weight:600}
+.adv-toggle .d{font-size:12px;color:var(--ink3);margin-top:2px}
+.adv-toggle .arw{transition:.25s var(--e);color:var(--ink3);font-size:12px}
+.adv-toggle.open .arw{transform:rotate(180deg)}
+
+#adv{display:none;margin-top:14px}
+#adv.open{display:block;animation:slide .3s var(--e) both}
+@keyframes slide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* ============================================================
+   滑块：仿 dsh-codex-effort-slider
+   轨道 28px 胶囊 · 旋钮直径=轨道高 · 刻度点 · 高档位星尘
+   ============================================================ */
+.sl{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:16px;margin-bottom:12px;
+}
+.sl .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.sl .hd .nm{font-size:14px;font-weight:600}
+.sl .num{
+  width:82px;text-align:center;font-size:15px;font-weight:600;
+  font-variant-numeric:tabular-nums;
+  border:1.5px solid #cfd5e4;border-radius:var(--r-s);padding:5px 6px;
+  font-family:inherit;color:#000;background:#fff;caret-color:#000;
+  transition:.2s var(--e);
+}
+.sl .num:hover{border-color:var(--accent)}
+.sl .num::placeholder{color:#9aa0a8}
+.sl .num:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(78,110,242,.1)}
+.sl .num.bad{border-color:var(--bad);animation:shake .3s}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+
+.sw-row{position:relative;padding:26px 0 8px}
+.track{
+  position:relative;box-sizing:border-box;height:28px;
+  border-radius:var(--r-full);background:var(--rail);
+  cursor:pointer;touch-action:none;
+  user-select:none;-webkit-user-select:none;
+  transition:box-shadow .25s var(--e);
+}
+.track:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.track:hover .knob{box-shadow:0 2px 8px rgba(0,0,0,.34),0 0 0 .5px rgba(0,0,0,.06)}
+
+.fill{
+  position:absolute;top:0;bottom:0;left:0;
+  border-radius:14px 0 0 14px;
+  background:linear-gradient(90deg,#6d8bff,#4e6ef2);
+  pointer-events:none;
+  transition:width .08s linear;
+}
+
+.tick{
+  position:absolute;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;
+  border-radius:50%;background:rgba(31,35,41,.26);
+  pointer-events:none;z-index:2;
+}
+.tick.on{background:rgba(255,255,255,.55)}
+
+.knob{
+  position:absolute;top:50%;width:28px;height:28px;margin:-14px 0 0 -14px;
+  border-radius:50%;background:#fff;
+  box-shadow:0 1px 5px rgba(0,0,0,.34),0 0 0 .5px rgba(0,0,0,.06);
+  pointer-events:none;z-index:3;
+  transition:box-shadow .2s var(--e);
+}
+
+.energy{
+  position:absolute;top:0;bottom:0;left:0;
+  border-radius:14px 0 0 14px;overflow:hidden;pointer-events:none;
+  opacity:var(--ce,0);transition:opacity .2s ease;z-index:1;
+  background:linear-gradient(90deg,#3b1178 0%,#6d28d9 30%,#9333ea 62%,#c084fc 100%);
+}
+.stars{
+  position:absolute;top:0;bottom:0;left:0;
+  border-radius:14px 0 0 14px;overflow:hidden;pointer-events:none;z-index:2;
+  opacity:var(--ce,0);transition:opacity .2s ease;
+}
+.star{
+  position:absolute;left:0;right:0;height:3px;pointer-events:none;
+  animation-name:star-sweep;animation-timing-function:linear;animation-iteration-count:infinite;
+}
+.star__dot{
+  position:absolute;left:100%;top:0;width:3px;height:3px;margin-left:-1.5px;
+  border-radius:50%;background:#fff;box-shadow:0 0 4px rgba(255,255,255,.85);
+  opacity:var(--b,1);transform:scale(var(--b,1));
+}
+@keyframes star-sweep{
+  0%{transform:translate3d(0,0,0);opacity:0}
+  6%{opacity:1} 94%{opacity:1}
+  100%{transform:translate3d(-100%,0,0);opacity:0}
+}
+.energy__sweep{
+  position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 18%,rgba(255,255,255,.30) 50%,transparent 82%);
+  transform:translateX(100%);animation:sweep 2.4s linear infinite;
+}
+@keyframes sweep{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+.track[data-energy='1']{box-shadow:0 0 calc(var(--ce,0) * 16px) rgba(168,85,247,.5)}
+.track[data-energy='0'] .star,.track[data-energy='0'] .energy__sweep{animation-play-state:paused}
+
+@media (prefers-reduced-motion: reduce){
+  .energy__sweep{display:none}
+  .star{animation-duration:60s !important}
+}
+
+.rec{
+  position:absolute;top:-9px;width:2px;height:9px;border-radius:2px;
+  background:var(--ok);opacity:.6;z-index:2;pointer-events:none;
+}
+.rec-label{
+  position:absolute;top:-25px;transform:translateX(-50%);
+  font-size:9.5px;color:var(--ok);white-space:nowrap;opacity:.9;pointer-events:none;
+}
+
+.bubble{
+  position:absolute;top:-8px;transform:translate(-50%,-100%);
+  background:var(--ink);color:#fff;font-size:11.5px;padding:3px 9px;border-radius:6px;
+  opacity:0;transition:opacity .18s var(--e);pointer-events:none;white-space:nowrap;z-index:5;
+}
+.track.drag .bubble{opacity:1}
+.bubble::after{
+  content:"";position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);
+  border:4px solid transparent;border-top-color:var(--ink);
+}
+
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;letter-spacing:.02em;padding:0 2px}
+.now{font-size:12px;color:#4b5563;margin-top:10px}
+.now b{color:var(--accent);font-weight:600}
+.now .man{
+  font-size:10.5px;background:var(--accents);color:var(--accent);
+  padding:1px 7px;border-radius:99px;margin-left:6px;cursor:pointer;
+}
+
+.bar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);padding:12px 0 env(safe-area-inset-bottom);
+}
+.bar .wrap{display:flex;gap:10px}
+.btn{
+  flex:1;height:48px;border-radius:var(--r-full);border:1px solid var(--line);
+  background:#fff;color:var(--ink2);font-family:inherit;font-size:15px;
+  cursor:pointer;transition:.2s var(--e);
+}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;flex:1.6}
+.btn.pri:hover{filter:brightness(1.06)}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181d; --card:#1e2027; --ink:#e8e9ec; --ink2:#a8adb8; --ink3:#767d8a;
+    --line:#2b2e37; --rail:rgba(255,255,255,.10); --accents:#232840;
+  }
+  .top{background:rgba(22,24,29,.92)}
+  .bar{background:rgba(22,24,29,.94)}
+  .num{background:#2b2f3b;color:#fff;border-color:#4a5060;caret-color:#fff}
+  .bub{background:#262a35}
+  .box{background:#242732;border-color:#3a3f4c}
+  .opt:hover{border-color:#3f4a7a}
+  .knob{background:#f3f4f7}
+  .notice{background:var(--card)}
+  .hint{background:#3a2f18;color:#e0c68a}
+  .hint em{color:#f0d9a3}
+  .star__dot{background:#f5f3ff;box-shadow:0 0 5px rgba(216,180,254,.95)}
+}
+
+#toast{
+  position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(8px);
+  background:var(--ok);color:#fff;padding:9px 20px;border-radius:99px;
+  font-size:13px;opacity:0;pointer-events:none;transition:.28s var(--e);z-index:40;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:420px){
+  .axis{gap:7px}
+  .opt{padding:12px 4px 10px}
+  .opt .nm{font-size:14px}
+  .opt .sb{font-size:10.5px}
+  .sw-row{padding:24px 0 6px}
+}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="wrap">
+  <h1>她说话的样子</h1>
+  <div class="lk">
+    <a href="/app">聊天</a>
+    <a href="/home">她的主页</a>
+  </div>
+</div></div>
+
+<div class="wrap">
+
+  <div class="notice">
+    <b>这些设置会改变她说话的样子。</b><br>
+    默认值是调过的。看不懂就别动——动了也能退回来。
+  </div>
+
+<div class="sec" id="masterSec">
+  <div class="sw" id="sw-enhance" style="border:1px solid #c3cdf3;background:#f7f9ff">
+    <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="tx"><div class="t">强化拟人</div>
+      <div class="d">总开关。<b>关着</b>：下面所有设置都不生效，她按以前的方式说话。<b>开着</b>：下面随便你调。</div>
+      <div class="lock" id="enhanceHint" style="display:none">现在是关的。想调她说多长、带不带动作，先把它打开。</div>
+    </div>
+  </div>
+</div>
+
+<div id="tunables" style="transition:opacity .2s">
+  <div class="sec">
+    <h2>一、发几条</h2>
+    <div class="axis four" id="ax1">
+      <div class="opt" data-v="few"><div class="tick">✓</div><div class="nm">少</div><div class="sb">1–2 条</div></div>
+      <div class="opt" data-v="mid"><div class="tick">✓</div><div class="nm">正常</div><div class="sb">2–3 条</div></div>
+      <div class="opt" data-v="many"><div class="tick">✓</div><div class="nm">多</div><div class="sb">3–6 条</div></div>
+      <div class="opt" data-v="auto"><div class="tick">✓</div><div class="nm">她自己定</div><div class="sb">看心情</div></div>
+    </div>
+    <div class="risk" id="autoRisk" style="display:none">
+      不看这里的选项，<b>由她当时的情绪决定说几条</b>。
+      累、消沉的时候多半一两句，活泼的时候三四句。
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>二、每句多长</h2>
+    <div class="axis" id="ax2">
+      <div class="opt" data-v="short"><div class="tick">✓</div><div class="nm">短</div><div class="sb">≤15 字</div></div>
+      <div class="opt" data-v="mid"><div class="tick">✓</div><div class="nm">正常</div><div class="sb">15–40 字</div></div>
+      <div class="opt" data-v="long"><div class="tick">✓</div><div class="nm">长</div><div class="sb">会成段</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="preview">
+      <div class="ph">她会这样说</div>
+      <div id="pv"></div>
+      <div class="sum" id="sum"></div>
+    </div>
+    <div class="hint" id="essayHint" style="display:none">
+      想让她写<em>小作文</em>？把「发几条」选<em>少</em>、「每句多长」选<em>长</em>。
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>三、要不要让她更像人</h2>
+
+    <div class="sw on" id="sw-sample">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx"><div class="t">说话样本</div><div class="d">12 组真实对话。关掉她就回到没有样板的写法。</div></div>
+    </div>
+
+    <div class="sw on" id="sw-plain">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx"><div class="t">说人话</div><div class="d">删掉 *轻轻一笑* 这种动作描写，把「似乎」改成「像」。</div></div>
+    </div>
+
+    <div class="sw" id="sw-terse">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx"><div class="t">别啰嗦</div><div class="d">最多留两句，不追问，不总结。</div>
+        <div class="lock">打开之后，上面两个选择会被接管（不能选「多」和「长」）</div></div>
+    </div>
+    <div class="sw on" id="sw-knows">
+      <div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6.2L4.6 9.3 10.5 3.2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tx"><div class="t">记得在一起多久</div><div class="d">开着：问她认识几天，她直接报数字，不会装不熟。关掉：她不再提。</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="adv-toggle" id="advBtn">
+      <div><div class="t">高级</div><div class="d">看得懂再动。看不懂就别开。</div></div>
+      <div class="arw">▾</div>
+    </div>
+    <div id="adv"><div id="sliders"></div></div>
+  </div>
+
+</div>
+
+</div>
+<div class="bar"><div class="wrap">
+  <button class="btn" id="reset">回到默认</button>
+  <button class="btn pri" id="save">保存</button>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+const DEF = {
+  rows:"auto", len:"mid", knows:true, enhance:false,
+  sample:true, plain:true, terse:false,
+  temp:0.80, freq:0.00, pres:0.00, cap:null
+};
+
+const CAP = {
+  few:  { short:60,  mid:150, long:600 },
+  mid:  { short:90,  mid:200, long:700 },
+  many: { short:200, mid:400, long:800 }
+};
+
+const SAMPLE_TEXT = {
+  few:{
+    short:["嗯。","那就先睡。"],
+    mid:["那就先睡。","别熬了。"],
+    long:["其实我今天一直在想一件事。你上次说那句话的时候我没接，是因为我不知道怎么接。我怕我说错了，你就不说了。对不起。"]
+  },
+  mid:{
+    short:["嗯。","行。","知道了。"],
+    mid:["那就先睡。","别熬了。","明天再说。"],
+    long:["我想了很久。你那天说的那句话，我其实听懂了，只是装作没听懂。","我不是不在意。我是怕一开口，就收不住。"]
+  },
+  many:{
+    short:["你听我说","我今天","特别想你","真的"],
+    mid:["你听我说。","我今天一直在想。","特别想你。","真的。"],
+    long:["你听我说。我今天一直在想一件事，想了一整天。你上次说的那句话，我到现在还记得。我不是不在意，我只是不知道怎么说。","你别笑我。"]
+  }
+};
+
+let S = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem("voice_cfg");
+    if (!raw) return {...DEF};
+    return Object.assign({}, DEF, JSON.parse(raw));
+  }catch(e){ return {...DEF}; }
+}
+function save(){ localStorage.setItem("voice_cfg", JSON.stringify(S)); }
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(window.__tt);
+  window.__tt = setTimeout(() => t.classList.remove("on"), 1500);
+}
+
+function bindAxis(id, key){
+  document.getElementById(id).querySelectorAll(".opt").forEach(el => {
+    el.addEventListener("click", () => {
+      if (el.style.pointerEvents === "none") return;
+      S[key] = el.dataset.v;
+      S.cap = null;
+      render();
+    });
+  });
+}
+function paintAxis(id, val){
+  document.getElementById(id).querySelectorAll(".opt").forEach(el => {
+    el.classList.toggle("on", el.dataset.v === val);
+  });
+}
+
+function renderPreview(){
+  let rows = S.terse ? "few" : S.rows;
+  const isAuto = (rows === "auto");
+  let len = S.len;
+  if (S.terse && len === "long") len = "mid";
+
+  const lines = SAMPLE_TEXT[isAuto ? "mid" : rows][len] || [];
+  const pv = document.getElementById("pv");
+  pv.innerHTML = "";
+  let chars = 0;
+  lines.forEach((s, i) => {
+    const d = document.createElement("div");
+    d.className = "bub";
+    d.style.animationDelay = (i * 60) + "ms";
+    d.textContent = s;
+    pv.appendChild(d);
+    chars += s.replace(/[。，、！？…\s]/g, "").length;
+  });
+  document.getElementById("sum").innerHTML =
+    (isAuto
+      ? "几条由她当时的心情定　·　上限 " + capAuto() + "（按「正常」给）"
+      : "<b>" + lines.length + "</b> 条 · 共 <b>" + chars + "</b> 字" +
+        (S.cap ? "　·　上限 " + S.cap + "（手动）" : ""));
+
+  document.getElementById("autoRisk").style.display = isAuto ? "block" : "none";
+  document.getElementById("essayHint").style.display =
+    (rows === "few" && len === "long") ? "block" : "none";
+}
+
+function bindSwitch(id, key){
+  document.getElementById(id).addEventListener("click", () => {
+    const el = document.getElementById(id);
+    if (el.classList.contains("off")) return;
+    S[key] = !S[key];
+    render();
+  });
+}
+function paintSwitch(id, on){
+  document.getElementById(id).classList.toggle("on", !!on);
+}
+
+const SLIDERS = [
+  { k:"temp", nm:"温度", min:0.5, max:1.2, step:0.01, rec:0.80,
+    ticks:["稳","正常","飘"],
+    now: v => v<=0.65 ? "很稳" : v<=0.85 ? "正常" : v<=1.0 ? "活泼" : "飘",
+    desc:"越高她说话越活，也越容易跑偏。" },
+  { k:"freq", nm:"别再重复", min:0.0, max:0.8, step:0.05, rec:0.00,
+    ticks:["关","轻","强"],
+    now: v => v<=0.001 ? "关" : v<=0.3 ? "轻" : v<=0.6 ? "中" : "强",
+    desc:"越高她越不爱反复用同一个词。" },
+  { k:"pres", nm:"别堆排比", min:0.0, max:0.8, step:0.05, rec:0.00,
+    ticks:["关","轻","强"],
+    now: v => v<=0.001 ? "关" : v<=0.3 ? "轻" : v<=0.6 ? "中" : "强",
+    desc:"越高她越不会写「很安静，很安静，很安静」。" },
+  { k:"cap", nm:"回复上限", min:60, max:800, step:10, rec:null,
+    ticks:["短","自动","长"],
+    now: v => v == null ? "自动" : String(v),
+    desc:"跟着上面两个轴自动算。手动拖动就会覆盖掉自动值。" }
+];
+
+function cfgAuto(){
+  let rows = S.terse ? "few" : S.rows;
+  if (rows === "auto") rows = "mid";
+  let len = S.len;
+  if (S.terse && len === "long") len = "mid";
+  return CAP[rows][len];
+}
+
+function capAuto(){ return cfgAuto(); }
+
+const STARS = (() => {
+  const arr = [];
+  let seed = 20261113;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  for (let i = 0; i < 22; i++){
+    arr.push({ top: rnd() * 100, b: 0.35 + rnd() * 0.65,
+               dur: 1.6 + rnd() * 2.4, delay: -rnd() * 4 });
+  }
+  return arr;
+})();
+
+function buildSliders(){
+  const box = document.getElementById("sliders");
+  box.innerHTML = "";
+  SLIDERS.forEach(cfg => {
+    const card = document.createElement("div");
+    card.className = "sl";
+    const recPct = cfg.rec != null
+      ? ((cfg.rec - cfg.min) / (cfg.max - cfg.min)) * 100 : null;
+
+    card.innerHTML =
+      '<div class="hd"><div class="nm">' + cfg.nm + '</div>' +
+        '<input class="num" id="num-' + cfg.k + '" type="text" inputmode="decimal"></div>' +
+      '<div class="sw-row">' +
+        '<div class="track" id="tr-' + cfg.k + '" tabindex="0">' +
+          '<div class="fill"></div>' +
+          '<div class="energy"><div class="energy__sweep"></div></div>' +
+          '<div class="stars"></div>' +
+          (recPct != null ? '<div class="rec" style="left:' + recPct + '%"></div>' +
+                            '<div class="rec-label" style="left:' + recPct + '%">' +
+                            (cfg.rec === cfg.min ? '默认' : '推荐') + '</div>' : '') +
+          '<div class="knob"></div>' +
+          '<div class="bubble"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ticks"><span>' + cfg.ticks[0] + '</span><span>' + cfg.ticks[1] +
+        '</span><span>' + cfg.ticks[2] + '</span></div>' +
+      '<div class="now">现在：<b id="now-' + cfg.k + '"></b>' +
+        (cfg.k === "cap" ? '<span class="man" id="man-cap" style="display:none">手动 · 点我回自动</span>' : '') +
+        '　' + cfg.desc + '</div>';
+
+    box.appendChild(card);
+    wireSlider(cfg, card, recPct);
+  });
+}
+
+function wireSlider(cfg, card, recPct){
+  const tr = card.querySelector(".track");
+  const fill = card.querySelector(".fill");
+  const energy = card.querySelector(".energy");
+  const starsBox = card.querySelector(".stars");
+  const knob = card.querySelector(".knob");
+  const bub = card.querySelector(".bubble");
+  const num = card.querySelector(".num");
+  const nowEl = card.querySelector("#now-" + cfg.k);
+
+  STARS.forEach(s => {
+    const line = document.createElement("div");
+    line.className = "star";
+    line.style.top = s.top + "%";
+    line.style.animationDuration = s.dur + "s";
+    line.style.animationDelay = s.delay + "s";
+    const dot = document.createElement("div");
+    dot.className = "star__dot";
+    dot.style.setProperty("--b", s.b);
+    line.appendChild(dot);
+    starsBox.appendChild(line);
+  });
+
+  [0.25, 0.5, 0.75].forEach(p => {
+    const t = document.createElement("div");
+    t.className = "tick";
+    t.style.left = (p * 100) + "%";
+    t.dataset.p = p;
+    tr.insertBefore(t, knob);
+  });
+
+  function val(){
+    if (cfg.k === "cap") return S.cap == null ? cfgAuto() : S.cap;
+    return S[cfg.k] == null ? cfg.rec : S[cfg.k];
+  }
+  function pct(v){ return ((v - cfg.min) / (cfg.max - cfg.min)) * 100; }
+  function fmt(v){
+    if (cfg.k === "cap") return String(Math.round(v));
+    return Number(v).toFixed(2);
+  }
+
+  function paint(){
+    const v = val();
+    const p = Math.max(0, Math.min(100, pct(v)));
+    fill.style.width = p + "%";
+    energy.style.width = p + "%";
+    starsBox.style.width = p + "%";
+    knob.style.left = p + "%";
+    /* 回复上限：没手动设的时候显示真实算出来的数字，
+       不然界面上写"自动"、实际却是 200，对不上。 */
+    if (cfg.k === "cap" && S.cap == null) {
+      bub.textContent = String(cfgAuto());
+      num.value = String(cfgAuto());
+      nowEl.textContent = "自动（跟着上面两个轴算：" + cfgAuto() + "）";
+    } else {
+      bub.textContent = fmt(v);
+      num.value = fmt(v);
+      nowEl.textContent = cfg.now(v);
+    }
+
+    let e = 0;
+    if (cfg.k === "cap") {
+      // 上限越高，星尘越亮：她一次说得越多，额度掉得越快。
+      e = (p / 100) * 0.8;
+    } else if (recPct != null && p > recPct) {
+      e = (p - recPct) / (100 - recPct);
+    }
+    e = Math.max(0, Math.min(1, e));
+    tr.style.setProperty("--ce", e.toFixed(3));
+    tr.dataset.energy = e > 0.02 ? "1" : "0";
+
+    tr.querySelectorAll(".tick").forEach(t => {
+      t.classList.toggle("on", p >= parseFloat(t.dataset.p) * 100 - 0.5);
+    });
+
+    const man = card.querySelector("#man-cap");
+    if (man) man.style.display = (S.cap == null) ? "none" : "inline-block";
+  }
+
+  function set(v, manual){
+    if (cfg.k === "cap"){
+      S.cap = manual ? Math.round(v / 10) * 10 : null;
+    }else{
+      v = Math.min(cfg.max, Math.max(cfg.min, v));
+      S[cfg.k] = Math.round(v / cfg.step) * cfg.step;
+    }
+    paint();
+  }
+
+  function fromEvent(e){
+    const r = tr.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const p = Math.min(1, Math.max(0, x / r.width));
+    return cfg.min + p * (cfg.max - cfg.min);
+  }
+
+  let dragging = false;
+  function down(e){ dragging = true; tr.classList.add("drag"); set(fromEvent(e), true); e.preventDefault(); }
+  function move(e){ if (!dragging) return; set(fromEvent(e), true); e.preventDefault(); }
+  function up(){ if (!dragging) return; dragging = false; tr.classList.remove("drag"); save(); renderPreview(); }
+
+  tr.addEventListener("mousedown", down);
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", up);
+  tr.addEventListener("touchstart", down, {passive:false});
+  window.addEventListener("touchmove", move, {passive:false});
+  window.addEventListener("touchend", up);
+
+  tr.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
+      set(val() + (e.key === "ArrowRight" ? 1 : -1) * cfg.step, true);
+      save(); renderPreview(); e.preventDefault();
+    }
+  });
+
+  tr.addEventListener("dblclick", () => {
+    if (cfg.k === "cap") S.cap = null; else S[cfg.k] = cfg.rec;
+    paint(); save(); renderPreview();
+  });
+
+  num.addEventListener("change", () => {
+    const raw = num.value.trim();
+    if (cfg.k === "cap" && (raw === "自动" || raw === "auto" || raw === "")){
+      S.cap = null; paint(); save(); renderPreview(); return;
+    }
+    const v = parseFloat(raw);
+    if (isNaN(v)){
+      num.classList.add("bad"); setTimeout(() => num.classList.remove("bad"), 400);
+      paint(); return;
+    }
+    if (v < cfg.min || v > cfg.max){
+      num.classList.add("bad"); setTimeout(() => num.classList.remove("bad"), 400);
+      set(Math.min(cfg.max, Math.max(cfg.min, v)), true);
+    }else{
+      set(v, true);
+    }
+    save(); renderPreview();
+  });
+  num.addEventListener("blur", () => paint());
+
+  const man = card.querySelector("#man-cap");
+  if (man) man.addEventListener("click", () => {
+    S.cap = null; paint(); save(); renderPreview();
+  });
+
+  card.__paint = paint;
+}
+
+function render(){
+  /* 总开关关着：下面整块变灰、不可点，并提示怎么打开 */
+  try{
+    var _tb = document.getElementById('tunables');
+    if (_tb){
+      _tb.style.opacity = S.enhance ? 1 : .38;
+      _tb.style.pointerEvents = S.enhance ? 'auto' : 'none';
+    }
+    var _hint = document.getElementById('enhanceHint');
+    if (_hint) _hint.style.display = S.enhance ? 'none' : 'block';
+  }catch(e){}
+
+  const locked = S.terse;
+
+  paintAxis("ax1", locked ? "few" : S.rows);
+  paintAxis("ax2", (locked && S.len === "long") ? "mid" : S.len);
+
+  document.querySelectorAll("#ax1 .opt").forEach(el => {
+    const off = locked && el.dataset.v !== "few";
+    el.style.opacity = off ? .35 : 1;
+    el.style.pointerEvents = off ? "none" : "auto";
+  });
+  document.querySelectorAll("#ax2 .opt").forEach(el => {
+    const off = locked && el.dataset.v === "long";
+    el.style.opacity = off ? .35 : 1;
+    el.style.pointerEvents = off ? "none" : "auto";
+  });
+
+  paintSwitch("sw-sample", S.sample);
+  paintSwitch("sw-plain",  S.plain);
+  paintSwitch("sw-terse",  S.terse);
+  paintSwitch("sw-knows",  S.knows);
+  paintSwitch("sw-enhance", S.enhance);
+
+  document.querySelectorAll(".sl").forEach(c => { if (c.__paint) c.__paint(); });
+  renderPreview();
+}
+
+bindAxis("ax1", "rows");
+bindAxis("ax2", "len");
+bindSwitch("sw-sample", "sample");
+bindSwitch("sw-plain",  "plain");
+bindSwitch("sw-terse",  "terse");
+bindSwitch("sw-knows", "knows");
+bindSwitch("sw-enhance", "enhance");
+
+document.getElementById("advBtn").addEventListener("click", () => {
+  const b = document.getElementById("advBtn");
+  const a = document.getElementById("adv");
+  b.classList.toggle("open");
+  a.classList.toggle("open");
+  if (a.classList.contains("open") && !a.dataset.built){
+    buildSliders();
+    a.dataset.built = "1";
+    render();
+  }
+});
+
+/* ---------- 拿 uid（没登录就是空） ---------- */
+let UID = "";
+
+async function whoAmI(){
+  /* 2026-11-13 P0：以前只问 /api/me，可那个接口根本不返回 user_id，
+     于是 UID 永远是空、保存只写进 localStorage、账号里什么都没存。
+     用户改几次都"改不回来"，就是这里。 */
+  try{ UID = localStorage.getItem("pn_uid") || ""; }catch(e){ UID = ""; }
+  if (UID) return;
+  try{
+    const r = await fetch("/api/me", {credentials:"same-origin"});
+    const d = await r.json();
+    if (d && d.ok && (d.user_id || d.uid)) UID = d.user_id || d.uid;
+  }catch(e){ UID = ""; }
+}
+
+async function pullCfg(){
+  if (!UID) return;
+  try{
+    const r = await fetch("/api/voice/get?uid=" + encodeURIComponent(UID));
+    const d = await r.json();
+    if (d && d.ok && d.cfg){
+      S = Object.assign({}, DEF, d.cfg);
+      save();
+      render();
+    }
+  }catch(e){}
+}
+
+document.getElementById("save").addEventListener("click", async () => {
+  save();
+  try{
+    const body = Object.assign({}, S, {uid: UID});
+    const r = await fetch("/api/voice/save", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      credentials:"same-origin", body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d && d.saved) toast("已保存，下一次说话就生效");
+    else toast("已存在本机。登录之后才会存到账号上");
+  }catch(e){
+    toast("已存在本机，没连上服务器");
+  }
+});
+
+document.getElementById("reset").addEventListener("click", () => {
+  S = {...DEF}; save(); render(); toast("已回到默认");
+});
+
+(async () => {
+  await whoAmI();
+  await pullCfg();
+  render();
+})();
+</script>
+</body>
+</html>

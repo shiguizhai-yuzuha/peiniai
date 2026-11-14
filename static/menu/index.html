@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>全部功能</title>
+<style>
+:root{
+  --bg:#f7f8fb; --card:#fff; --ink:#1f2329; --ink2:#646a73; --ink3:#9aa0a8;
+  --line:#e8eaf0; --accent:#4e6ef2; --accents:#eef1fe;
+  --r-s:8px; --r-m:12px; --r-l:16px; --r-full:999px;
+  --e:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px; line-height:1.75; padding:0 0 60px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:680px;margin:0 auto;padding:0 18px}
+
+.top{
+  position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+  padding:16px 0 14px;margin-bottom:8px;
+}
+.top .wrap{display:flex;align-items:center;justify-content:space-between}
+.top h1{font-size:18px;font-weight:600;letter-spacing:.02em}
+.top a{font-size:13px;color:var(--ink3);text-decoration:none}
+.top a:hover{color:var(--accent)}
+
+.lead{
+  font-size:13px;color:var(--ink3);line-height:1.9;margin:10px 0 22px;
+}
+
+.sec{margin-bottom:26px}
+.sec>h2{
+  font-size:12.5px;font-weight:600;color:var(--ink3);letter-spacing:.1em;
+  margin-bottom:12px;display:flex;align-items:center;gap:10px;
+}
+.sec>h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:460px){ .grid{grid-template-columns:1fr} }
+
+.card{
+  display:block;text-decoration:none;color:inherit;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-m);
+  padding:14px 15px;transition:.2s var(--e);position:relative;
+}
+.card:hover{border-color:#c3cdf3;box-shadow:0 4px 16px rgba(78,110,242,.10);transform:translateY(-1px)}
+.card .nm{font-size:15px;font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:7px}
+.card .ds{font-size:12.5px;color:var(--ink2);line-height:1.7}
+.card .url{font-size:10.5px;color:var(--ink3);margin-top:6px;font-family:Consolas,monospace}
+.card .new{
+  font-size:9.5px;background:var(--accents);color:var(--accent);
+  padding:1px 6px;border-radius:99px;letter-spacing:.04em;font-weight:600;
+}
+.card.hi{border-color:#c3cdf3;background:linear-gradient(180deg,#fbfcff,#fff)}
+
+.note{
+  margin-top:26px;font-size:12px;color:var(--ink3);line-height:1.9;
+  border-top:1px dashed var(--line);padding-top:16px;
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#16181d; --card:#1e2027; --ink:#e8e9ec; --ink2:#a8adb8; --ink3:#767d8a;
+    --line:#2b2e37; --accents:#232840;
+  }
+  .top{background:rgba(22,24,29,.92)}
+  .card.hi{background:linear-gradient(180deg,#20242f,#1e2027)}
+  .card:hover{border-color:#3f4a7a;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="wrap">
+  <h1>全部功能</h1>
+  <a href="/app">去聊天</a>
+</div></div>
+
+<div class="wrap">
+
+  <div class="lead">
+    这个站点一共有这些页面。点开就是新标签页，不会打断你正在聊的。
+  </div>
+
+  <div class="sec">
+    <h2>一、和她说话</h2>
+    <div class="grid">
+      <a class="card hi" href="/app">
+        <div class="nm">聊天 <span class="new">主入口</span></div>
+        <div class="ds">她记得你说过的话。这里是她住的地方。</div>
+        <div class="url">/app</div>
+      </a>
+      <a class="card" href="/?ui=old">
+        <div class="nm">旧界面</div>
+        <div class="ds">功能最全的那个。登录、注册、剧情、导出都在这。</div>
+        <div class="url">/?ui=old</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>二、调她</h2>
+    <div class="grid">
+      <a class="card hi" href="/voice">
+        <div class="nm">她说话的样子 <span class="new">新</span></div>
+        <div class="ds">发几条、每句多长、温度、去 AI 味。改完立刻生效。</div>
+        <div class="url">/voice</div>
+      </a>
+      <a class="card" href="/home">
+        <div class="nm">她的主页</div>
+        <div class="ds">她记住了什么、换背景、里程碑、导入导出。</div>
+        <div class="url">/home</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>三、陪她玩</h2>
+    <div class="grid">
+      <a class="card" href="/piano">
+        <div class="nm">她弹琴</div>
+        <div class="ds">十首公有领域的曲子，可以给她加谱。</div>
+        <div class="url">/piano</div>
+      </a>
+      <a class="card" href="/keys">
+        <div class="nm">电子琴</div>
+        <div class="ds">八十八键，带粒子。可以按给她听。</div>
+        <div class="url">/keys</div>
+      </a>
+      <a class="card" href="/scene/beach">
+        <div class="nm">海边</div>
+        <div class="ds">带她出去走走。</div>
+        <div class="url">/scene/beach</div>
+      </a>
+      <a class="card" href="/scene/rose">
+        <div class="nm">粒子玫瑰</div>
+        <div class="ds">一朵会散开的玫瑰。</div>
+        <div class="url">/scene/rose</div>
+      </a>
+      <a class="card" href="/ab">
+        <div class="nm">声音盲测</div>
+        <div class="ds">两种音色，你不看标签听一遍，挑顺耳的那个。</div>
+        <div class="url">/ab</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>四、看更新</h2>
+    <div class="grid">
+      <a class="card" href="/notice">
+        <div class="nm">更新公告</div>
+        <div class="ds">最新的一份。每次改了什么、为什么改，都写在这。</div>
+        <div class="url">/notice</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="note">
+    没有列出来的：<br>
+    · 剧情生成、纪念册、导出，都在旧界面里。<br>
+    · 她说话的样子 和 她的主页，两个界面都能点进去，看到的是同一份设置。
+  </div>
+
+</div>
+</body>
+</html>

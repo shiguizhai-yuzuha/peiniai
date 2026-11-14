@@ -1,0 +1,1905 @@
+import uuid
+import traceback
+import base64
+from urllib.parse import quote
+import os
+import time
+import random
+import threading
+from datetime import datetime
+
+import gradio as gr
+from config import (
+    PERSONAS, DEFAULT_PERSONA, OPENINGS,
+    TYPING_HINT, TYPING_HINT_CHANCE, MEMORY_PINNED_MAX,
+    CHARACTER_BACKGROUNDS, LOGIN_BACKGROUND,
+    HOST, PORT, INPUT_WAIT_SECONDS, SHOW_STARTUP_NOTICE,
+    GALGAME_ENABLED,
+)
+from db.models import init_db
+from db import repository as repo
+from core.auth import validate_username, validate_password, hash_password, verify_password
+from core import relationship, milestones, permissions, personas, persona_gen, chat_import, stage
+from core import persona_create
+from services import billing
+from services import story_jobs
+from galgame import geo as ggeo
+from galgame import player as gplayer
+from services import keepsake as gkeep
+from services import guest
+from services import guest_chat
+from services.chat import handle_message, split_chunks
+
+init_db()
+
+# 剧情生成的启动准备：建目录 + 清上次没跑完的僵尸任务
+try:
+    from services import story_jobs as _sj
+    _sj._ensure_dir()
+    _sj.recover_stuck(minutes=15)
+    print("[启动] 剧情目录就绪，僵尸任务已清理", flush=True)
+except Exception as _e:
+    print("[启动] 剧情初始化跳过：%s" % _e, flush=True)
+
+_input_buffers = {}
+_input_lock = threading.Lock()
+
+
+# ============ 背景 ============
+
+def _img_to_b64(path):
+    if not path or not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+def _bg_url(path):
+    """把本地图片变成浏览器能访问的 URL（走 Gradio 的 file 路由）。
+
+    以前是 base64 内联：体积多 33%，而且浏览器没法缓存，每次切角色都重传。
+    """
+    abs_path = os.path.abspath(path).replace("\\", "/")
+    return "/gradio_api/file=" + quote(abs_path, safe="/:")
+
+
+def get_bg_style(persona=None, is_login=False, user_id=None):
+    img_path = None
+
+    if is_login and os.path.exists(LOGIN_BACKGROUND):
+        img_path = LOGIN_BACKGROUND
+
+    # 用户自己换过的背景，优先
+    if not img_path and user_id and persona:
+        try:
+            ub = repo.get_user_bg(user_id, persona)
+            if ub and ub.get("file") and os.path.exists(ub["file"]):
+                img_path = ub["file"]
+        except Exception:
+            pass
+
+    if not img_path and persona:
+        candidate = personas.get_background(persona)
+        if candidate and os.path.exists(candidate):
+            img_path = candidate
+
+    if not img_path and os.path.exists("static/bg.jpg"):
+        img_path = "static/bg.jpg"
+
+    if not img_path:
+        return ""
+
+    # 竖版图：同目录下同名加 _v 后缀（没有就沿用横版）
+    root, ext = os.path.splitext(img_path)
+    v_path = root + "_v" + ext
+    if not os.path.exists(v_path):
+        v_path = None
+
+    css = f"""
+    <style>
+    .gradio-container, gradio-app, body {{
+        background-image: url('{_bg_url(img_path)}') !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-attachment: fixed !important;
+    }}"""
+
+    # 手机竖屏时换竖版（浏览器自己判断，不需要检测设备）
+    if v_path:
+        css += f"""
+    @media (orientation: portrait) and (max-width: 900px) {{
+        .gradio-container, gradio-app, body {{
+            background-image: url('{_bg_url(v_path)}') !important;
+        }}
+    }}"""
+
+    css += """
+    </style>
+    """
+    return css
+
+
+def get_static_css():
+    """CSS 放在 static/style.css，改样式不用碰 Python。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "style.css")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print("[样式] 读不到 style.css：%s" % e, flush=True)
+        return ""
+
+
+# ============ 模板加载 ============
+# HTML 放在 templates/ 目录，改文案不用碰 Python。
+_TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+
+
+def _load_template(name):
+    """读一个模板文件。读不到返回空串，不让页面挂掉。"""
+    path = os.path.join(_TEMPLATE_DIR, name)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print("[模板] 读不到 %s：%s" % (name, e), flush=True)
+        return ""
+
+
+CSS = get_static_css()
+
+
+# ============ 启动警告 ============
+# 登录前先说清楚"这不是真人"。以后想改文案，只改这一段 HTML 即可。
+NOTICE_HTML = _load_template("notice.html")
+BANNER_XLL_HTML = _load_template("banner_xll.html")
+# 登录前的启动警告
+
+
+# ============ 纪念页 ============
+
+def _fmt_day(raw):
+    """库里存的是 UTC，显示时转成本地日期。"""
+    if not raw:
+        return "——"
+    try:
+        from datetime import datetime, timedelta
+        return (datetime.fromisoformat(str(raw)) + timedelta(hours=8)).strftime("%Y-%m-%d")
+    except Exception:
+        return str(raw)[:10]
+
+
+def render_milestones(user_id, persona):
+    """纪念页：只显示已经发生过的事，顶部一条细进度。
+
+    刻意不做的事：不显示"未解锁 ???"的占位卡——还没发生的事不该剧透。
+    """
+    if not user_id:
+        return ("<div style='padding:40px;text-align:center;color:#bbb;font-size:15px'>"
+                "请先登录。</div>")
+
+    # hidden: 开头的是内部标记（彩蛋等），不当成纪念显示
+    items = [m for m in repo.get_milestones(user_id, persona)
+             if not str(m.get("key", "")).startswith("hidden:")]
+    if not items:
+        return ("<div style='padding:40px;text-align:center;color:#bbb;font-size:15px'>"
+                "还没有什么。<br>你们才刚认识。</div>")
+
+    total = len(milestones.DEFS)
+    got = len(items)
+    pct = int(got * 100 / total) if total else 0
+
+    bar = (
+        "<div style='display:flex;align-items:center;gap:12px;margin:0 0 18px'>"
+        "<div style='flex:1;height:6px;background:rgba(255,255,255,0.14);"
+        "border-radius:3px;overflow:hidden'>"
+        f"<div style='width:{pct}%;height:100%;background:#95ec69'></div>"
+        "</div>"
+        f"<div style='font-size:12px;color:#9aa0a6;white-space:nowrap'>{got} / {total}</div>"
+        "</div>"
+    )
+
+    cards = []
+    for m in items:
+        # 好感跨坎没法还原真实日期（库里没有历史曲线），标成"时间不详"而不是假的日期
+        if m.get("key") in ("intimacy_50", "intimacy_80"):
+            day = "时间不详"
+        else:
+            day = _fmt_day(m.get("unlocked_at"))
+        title = m.get("title") or ""
+        cards.append(
+            "<div style='background:rgba(20,20,24,0.74);border-radius:14px;"
+            "padding:16px 18px;margin:0 0 12px;border-left:3px solid #95ec69;'>"
+            f"<div style='font-size:15px;color:#f2f2f2;line-height:1.6'>{title}</div>"
+            f"<div style='font-size:12px;color:#8d8d8d;margin-top:6px'>{day}</div>"
+            "</div>"
+        )
+
+    return (
+        "<div style='max-width:640px;margin:0 auto;padding:8px 0'>"
+        f"<div style='color:#bbb;font-size:13px;margin-bottom:10px'>"
+        f"和「{persona}」之间，已经发生过的 {got} 件事：</div>"
+        + bar
+        + "".join(cards)
+        + "</div>"
+    )
+
+
+def open_milestones(user_id, persona):
+    """打开纪念页：藏起聊天区，渲染卡片。"""
+    return (
+        gr.update(visible=False),                          # chat_group
+        gr.update(visible=True),                           # milestone_group
+        render_milestones(user_id, persona),               # milestone_html
+    )
+
+
+# ============ 关系渲染（按角色独立） ============
+
+def render_relationship(user_id, persona):
+    if not user_id:
+        return ""
+
+    # 好感度与表白状态按角色独立：读 user_characters（chat.py 现在写的就是这张表）
+    char = repo.get_character_state(user_id, persona)
+    intimacy = char.get("intimacy", 0)
+    is_lover = bool(char.get("confessed_at"))
+
+    if is_lover:
+        stage_label = "恋人"
+        heart_str = "💕"
+    else:
+        display = min(intimacy, 55)
+        if intimacy >= 55:
+            stage_label = "暧昧期"
+            heart_str = "💗"
+        else:
+            stage = relationship.get_stage(display, False)
+            stage_label = relationship.STAGE_NAMES.get(stage, stage)
+            hearts = min(5, int(display / 12))
+            heart_str = "❤️" * hearts + "🤍" * (5 - hearts)
+
+    return (
+        f"<div style='font-size:16px;color:#fff'>"
+        f"关系：<b>{stage_label}</b> {heart_str}"
+        f"</div>"
+    )
+
+
+def load_history(user_id, persona):
+    if not user_id:
+        return []
+    history = repo.get_recent_messages(user_id, persona, limit=20)
+    result = []
+    for m in history:
+        if m["role"] == "assistant":
+            for chunk in split_chunks(m["content"], max_chunks=20, merge=False):
+                result.append({"role": "assistant", "content": chunk})
+        else:
+            result.append({"role": m["role"], "content": m["content"]})
+    return result
+
+
+def opening_history(persona):
+    """聊天记录为空时，让她先说第一句。
+
+    只用于展示，不写进 messages 表——
+    这样既不用花 token，也不会污染统计和记忆。
+    """
+    lines = personas.get_openings(persona)
+    if not lines:
+        return []
+    return [{"role": "assistant", "content": random.choice(lines)}]
+
+
+# ============ 核心对话 ============
+
+def respond(message, chat_history, user_id, session_id, persona, guest_token=None):
+    # 游客：只有"没有 user_id 但有凭证"才走免登录。
+    # 这样登录之后即使 guest_token 还留着，也不会串到游客路径。
+    if guest_token and not user_id:
+        yield from _respond_guest(message, chat_history, guest_token, persona)
+        return
+
+    if not user_id:
+        yield "", chat_history + [
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": "⚠️ 请先登录"},
+        ], gr.update(), ""
+        return
+
+    if not message.strip():
+        yield "", chat_history, gr.update(), ""
+        return
+
+    chat_history = chat_history + [{"role": "user", "content": message}]
+
+    # 顶部状态条：像微信标题栏一样显示"XX正在输入……"
+    # 它只活在这一轮里，不写进聊天记录，所以刷新不会残留。
+    typing = ""
+    if random.random() < TYPING_HINT_CHANCE:
+        typing = f"{persona}正在输入……"
+
+    yield "", chat_history, gr.update(), typing
+
+    with _input_lock:
+        if user_id not in _input_buffers:
+            _input_buffers[user_id] = {"messages": [], "seq": 0, "persona": persona}
+        _input_buffers[user_id]["messages"].append(message)
+        _input_buffers[user_id]["seq"] += 1
+        my_seq = _input_buffers[user_id]["seq"]
+
+    time.sleep(INPUT_WAIT_SECONDS)
+
+    with _input_lock:
+        buf = _input_buffers.get(user_id)
+        if not buf:
+            yield "", chat_history, gr.update(), ""
+            return
+        if buf.get("persona") != persona:
+            print(f"[丢弃] 角色已切换 user={user_id[:8]}", flush=True)
+            yield "", chat_history, gr.update(), ""
+            return
+        if buf["seq"] != my_seq:
+            # 后面还有消息，让最新的那次去处理；状态条清掉，免得卡住
+            yield "", chat_history, gr.update(), ""
+            return
+        msgs = buf["messages"].copy()
+        _input_buffers[user_id] = {"messages": [], "seq": 0, "persona": persona}
+
+    # 防抖结束：把这一轮收到的几条消息一起交给业务层。
+    # 界面上它们已经是独立气泡（上面每收到一条就 yield 过一次聊天记录），
+    # 这里传列表，是为了让它们也"一条一行"入库 —— 否则刷新/切角色后会被粘成一条。
+    print(f"[缓冲] user={user_id[:8]} persona={persona} 合并 {len(msgs)} 条", flush=True)
+
+    try:
+        got_any = False
+        for chunk, err in handle_message(user_id, session_id, msgs, persona):
+            got_any = True
+            content = chunk or err
+            typing = ""          # 第一条真回复来了，状态条收掉
+            chat_history = chat_history + [{"role": "assistant", "content": content}]
+            yield "", chat_history, gr.update(value=render_relationship(user_id, persona)), typing
+        if not got_any:
+            print(f"[睡眠] 静默处理 user={user_id[:8]}", flush=True)
+        yield "", chat_history, gr.update(), ""
+    except Exception as e:
+        print(f"发生异常：{e}")
+        traceback.print_exc()
+        chat_history = chat_history + [{"role": "assistant", "content": f"⚠️ 出错：{e}"}]
+        yield "", chat_history, gr.update(), ""
+
+
+
+
+# ============ 新建角色 ============
+
+def toggle_create():
+    return gr.update(visible=True)
+# ============ 新建角色：校验 / 导入 / 生成 / 写库 / 切界面 ============
+# 拆成四步，每步只做一件事。调度在 do_create_persona。
+
+def _create_fail(msg, session_id):
+    """统一的失败返回。"""
+    return msg, gr.update(), gr.update(), [], "", session_id
+def do_create_persona(name, call_me, quote, state, target, user_id, session_id, raw=""):
+    """生成一个私有角色，并把界面切到它。
+
+    具体五步在 core.persona_create 里，这里只管调度和界面。
+    """
+    err = persona_create.check(name, quote, user_id)
+    if err:
+        return _create_fail(err, session_id)
+
+    imported = persona_create.import_chat(user_id, raw, call_me)
+
+    r, err = persona_create.generate(user_id, name, call_me, quote,
+                                     state, target, imported)
+    if err:
+        return _create_fail(err, session_id)
+
+    cid, knows, stage, err = persona_create.save(user_id, name, call_me,
+                                                 target, r, imported)
+    if err:
+        return _create_fail(err, session_id)
+
+    key = personas.custom_key(cid)
+    choices = personas.list_for_user(user_id)
+    history = opening_history(key)
+    bg = get_bg_style(key, user_id=user_id)
+    new_session = str(uuid.uuid4())
+
+    print(f"[新建角色] user={user_id[:8]} id={cid} name={name} target={target} "
+          f"knows={knows} stage={stage}", flush=True)
+
+    msg = (f"✅ **{name}** 已经建好了。\n\n"
+           f"她说的第一句是：「{r['opening']}」\n\n"
+           f"_她不是你认识的那个人，是根据你给的材料重建的。_")
+    return (msg, gr.update(visible=False),
+            gr.update(choices=choices, value=key),
+            history, bg, new_session)
+
+
+def show_tell_confirm():
+    return gr.update(visible=True)
+
+
+def hide_tell_confirm():
+    return gr.update(visible=False)
+
+
+def refresh_stage(user_id, persona):
+    """刷新状态条 / 告诉她按钮 / 告别页。非私有角色 → 全空。"""
+    empty = ("", gr.update(visible=False), "", gr.update(visible=False))
+    if not user_id or not persona or not personas.is_custom(persona):
+        return empty
+
+    st = stage.stage_of(user_id, persona)
+    line = stage.stage_line(user_id, persona)
+    bar = ("**%s**" % line) if line else ""
+
+    if st != "E":
+        hint = ""
+        if stage.needs_tell(st):
+            hint = ("\n\n_她还不知道你们已经结束了。如果你告诉她，就回不去了。_")
+        return (bar + hint, gr.update(visible=stage.needs_tell(st)),
+                "", gr.update(visible=False))
+
+    rows = repo.get_all_messages(user_id, persona)
+    body = []
+    for m in rows:
+        who = "她" if m["role"] == "assistant" else "我"
+        txt = (m["content"] or "").replace("<msg>", "  ")
+        body.append("%s｜%s" % (who, txt))
+    text = "\n".join(body)
+
+    md = ("## 她走了\n\n"
+          "她说过的话，都在下面。\n\n"
+          "_这些是真的。发生过。_\n\n---\n\n" + text)
+    return bar, gr.update(visible=False), md, gr.update(visible=True)
+
+
+def do_tell(user_id, persona):
+    """「告诉她」按钮。不可逆。"""
+    if not user_id or not persona:
+        return "⚠️ 请先登录。", gr.update(visible=False), "", gr.update(visible=False)
+    ok, msg = stage.tell(user_id, persona)
+    print("[告诉她] user=%s persona=%s ok=%s" % (str(user_id)[:8], persona, ok), flush=True)
+    bar, tell_vis, fmd, fvis = refresh_stage(user_id, persona)
+    return msg, tell_vis, fmd, fvis
+
+
+def _refresh_stage_wrap(u, p):
+    return refresh_stage(u, p)
+
+
+def do_delete_persona(user_id):
+    """删掉这个用户所有的自定义角色，连同对话和记忆。"""
+    if not user_id:
+        return "⚠️ 请先登录。", gr.update(), gr.update()
+    rows = repo.list_custom_personas(user_id)
+    if not rows:
+        return "（你现在没有自定义角色）", gr.update(), gr.update()
+    for r in rows:
+        repo.delete_custom_persona(r["id"], user_id)
+        print("[删角色] user=%s id=%s name=%s" % (str(user_id)[:8], r["id"], r["name"]),
+              flush=True)
+    choices = personas.list_for_user(user_id)
+    return ("✅ 已经删掉了。连对话和记忆一起清的。",
+            gr.update(choices=choices, value=DEFAULT_PERSONA),
+            gr.update(visible=True))
+
+
+def _is_vip(user_id):
+    u = repo.get_or_create_user(user_id) if user_id else None
+    return bool(u and u.get("role") in ("vip", "admin"))
+
+
+def do_set_bg(user_id, persona, filepath):
+    """换背景：压缩 → 存盘 → 入待审。"""
+    if not user_id:
+        return "⚠️ 请先登录。"
+    if not _is_vip(user_id):
+        return "⚠️ 换背景现在只对老友开放。\n\n（每一张我要人工看一遍，人多了看不过来。）"
+    if not filepath:
+        return "⚠️ 先选一张图。"
+    if not persona:
+        return "⚠️ 先选一个角色。"
+
+    try:
+        import uuid as _uuid
+        from PIL import Image as _Image
+
+        im = _Image.open(filepath).convert("RGB")
+        w, h = im.size
+        MAX_W = 1080
+        if w > MAX_W:
+            im = im.resize((MAX_W, int(h * MAX_W / w)), _Image.LANCZOS)
+
+        d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "user_bg")
+        os.makedirs(d, exist_ok=True)
+
+        # 文件名带 user_id，防撞
+        safe_persona = "".join(ch for ch in str(persona) if ch.isalnum() or ch in "_-")
+        fname = "%s_%s_%s.jpg" % (str(user_id)[:16], safe_persona, _uuid.uuid4().hex[:6])
+        out = os.path.join(d, fname)
+        im.save(out, "JPEG", quality=78, optimize=True, progressive=True)
+
+        size_kb = os.path.getsize(out) / 1024
+
+        # 旧文件清掉
+        old = repo.delete_user_bg(user_id, persona)
+        if old and os.path.exists(old):
+            try:
+                os.remove(old)
+            except Exception:
+                pass
+
+        repo.set_user_bg(user_id, persona, out, status="pending")
+        print("[换背景] user=%s persona=%s %.0fKB → pending" % (str(user_id)[:8], persona, size_kb),
+              flush=True)
+        return ("✅ 已经换成这张了。\n\n"
+                "**切到「%s」就能看到。**" % persona)
+    except Exception as e:
+        print("[换背景] 失败：%s" % e, flush=True)
+        return "⚠️ 换背景失败：%s" % e
+
+
+def do_reset_bg(user_id, persona):
+    if not user_id:
+        return "⚠️ 请先登录。"
+    old = repo.delete_user_bg(user_id, persona)
+    if old and os.path.exists(old):
+        try:
+            os.remove(old)
+        except Exception:
+            pass
+    print("[换背景] user=%s persona=%s 恢复默认" % (str(user_id)[:8], persona), flush=True)
+    return "✅ 「%s」已经用回原来的背景。" % persona
+
+
+# ============ 把这段带走（导出） ============
+
+def _today():
+    from datetime import date
+    return date.today().strftime("%Y%m%d")
+
+
+def _my_personas(user_id):
+    try:
+        return [x["persona"] for x in gkeep.list_personas(user_id)]
+    except Exception:
+        return []
+
+
+def do_export_refresh(user_id):
+    if not user_id:
+        return "⚠️ 请先登录。", gr.Dropdown(choices=[], value=None)
+    ps = _my_personas(user_id)
+    if not ps:
+        return "还没有可以带走的对话。先去聊几句。", gr.Dropdown(choices=[], value=None)
+    return ("选一个角色，或者导出全部。", gr.Dropdown(choices=ps, value=ps[0]))
+
+
+def do_export_txt(user_id, persona):
+    """原始聊天记录，免费。"""
+    if not user_id:
+        return "⚠️ 请先登录。"
+    if not persona:
+        return "⚠️ 先选一个角色。"
+    try:
+        txt = gkeep.render_txt(user_id, persona)
+        path, name = gkeep.save("txt", txt, "txt",
+                                  stem="陪你AI_聊天记录_%s_%s" % (persona, _today()))
+        return ("✅ 好了：**[点这里下载](%s)**　（%s，%d 字）\n\n"
+                "下载不了就试这个：[强制下载](%s)"
+                % ("/keepsake/" + name, persona, len(txt),
+                   "/keepsake/dl/" + name))
+    except Exception as e:
+        return "⚠️ 导出失败：%s" % e
+
+
+def do_export_book(user_id, persona):
+    """纪念册，一个角色 3 元，vip 免费。"""
+    if not user_id:
+        return "⚠️ 请先登录。"
+    if not persona:
+        return "⚠️ 先选一个角色。"
+    try:
+        user = repo.get_or_create_user(user_id)
+        is_vip = (user.get("role") == "vip")
+        if not is_vip:
+            if not billing.has_balance(user_id, gkeep.PRICE_ONE):
+                return "⚠️ 余额不够，这一份要 %.0f 元。" % gkeep.PRICE_ONE
+            billing.charge_yuan(user_id, gkeep.PRICE_ONE)
+
+        html_text = gkeep.render_html(user_id, [persona])
+        if not html_text:
+            if not is_vip:
+                repo.update_balance(user_id, gkeep.PRICE_ONE)
+            return "⚠️ 这个角色还没有足够的对话。"
+        path, name = gkeep.save("html", html_text, "html",
+                                  stem="%s_纪念册_%s" % (persona, _today()))
+        tip = "（老友免费）" if is_vip else "（扣 %.0f 元）" % gkeep.PRICE_ONE
+        return ("✅ 纪念册好了 %s\n\n"
+                "**[点这里打开](%s)**　|　**[下载文件](%s)**\n\n"
+                "手机直接截长图存下来。电脑上也能 Ctrl+P 存 PDF。"
+                % (tip, "/keepsake/" + name, "/keepsake/dl/" + name))
+    except Exception as e:
+        return "⚠️ 生成失败：%s" % e
+
+
+def do_export_all(user_id):
+    """全部角色，9.9 元，vip 免费。"""
+    if not user_id:
+        return "⚠️ 请先登录。"
+    try:
+        ps = _my_personas(user_id)
+        if not ps:
+            return "⚠️ 还没有可以带走的对话。"
+        user = repo.get_or_create_user(user_id)
+        is_vip = (user.get("role") == "vip")
+        if not is_vip:
+            if not billing.has_balance(user_id, gkeep.PRICE_ALL):
+                return "⚠️ 余额不够，全部要 %.1f 元。" % gkeep.PRICE_ALL
+            billing.charge_yuan(user_id, gkeep.PRICE_ALL)
+
+        html_text = gkeep.render_html(user_id, ps)
+        if not html_text:
+            if not is_vip:
+                repo.update_balance(user_id, gkeep.PRICE_ALL)
+            return "⚠️ 没有内容。"
+        path, name = gkeep.save("html", html_text, "html",
+                                  stem="陪你AI_纪念册_全部角色_%s" % _today())
+        tip = "（老友免费）" if is_vip else "（扣 %.1f 元）" % gkeep.PRICE_ALL
+        return ("✅ 全部 %d 个角色都在里面 %s\n\n"
+                "**[点这里打开](%s)**　|　**[下载文件](%s)**\n\n"
+                "手机上直接截长图。电脑上也能 Ctrl+P 存 PDF。"
+                % (len(ps), tip, "/keepsake/" + name, "/keepsake/dl/" + name))
+    except Exception as e:
+        return "⚠️ 生成失败：%s" % e
+
+
+# ============ 给她做一趟旅行 ============
+
+# 目的地固定杭州。这里列的是"出发地"候选，第一项是自动。
+STORY_DEST = "杭州"
+STORY_AUTO = "自动（按 IP）"
+STORY_ORIGINS = [STORY_AUTO, "新艾利都", "温州", "金华", "宁波", "上海",
+                 "苏州", "南京", "合肥", "福州", "南昌", "济南", "北京", "广州"]
+
+
+def _story_list_md(user_id):
+    rows = repo.list_stories(user_id, limit=10)
+    if not rows:
+        return "_还没有。_"
+    out = []
+    for r in rows:
+        st = r.get("status")
+        title = r.get("title") or "（未命名）"
+        line = "· **%s**　%s → %s　%s" % (
+            title, r.get("origin") or "?", r.get("city") or "?", story_jobs.status_line(r))
+        if st == "done":
+            line += "　[看](/%s)" % ("story/" + r["id"])
+        out.append(line)
+    return "\n".join(out)
+
+
+def build_story_profile(user_id, persona):
+    """从记忆里拼一个画像。只读，绝不写库。
+
+    拿的是：名字、喜好、厌恶、最近状态、情绪、态度、好感、信任。
+    """
+    prof = {"name": "", "likes": [], "dislikes": [], "state": "", "mood": "",
+            "attitude": "", "intimacy": 30, "trust": 50}
+    try:
+        mems = repo.get_memories_all(user_id, persona, limit=120)
+    except Exception:
+        mems = []
+
+    for m in mems or []:
+        k = str(m.get("key") or "")
+        v = str(m.get("value") or "").strip()
+        if not v:
+            continue
+        if k == "name" and not prof["name"]:
+            prof["name"] = v[:20]
+        elif k.startswith("like:") and len(prof["likes"]) < 8:
+            prof["likes"].append(v[:20])
+        elif k.startswith("dislike:") and len(prof["dislikes"]) < 6:
+            prof["dislikes"].append(v[:20])
+        elif k == "daily_state" and not prof["state"]:
+            prof["state"] = v[:40]
+        elif k == "mood" and not prof["mood"]:
+            prof["mood"] = v[:30]
+        elif k == "attitude" and not prof["attitude"]:
+            prof["attitude"] = v[:40]
+
+    try:
+        st = repo.get_character_state(user_id, persona) or {}
+        prof["intimacy"] = float(st.get("intimacy") or 30)
+        prof["trust"] = float(st.get("trust") or 50)
+    except Exception:
+        pass
+
+    return prof
+
+
+def do_story_start(user_id, origin_choice, persona=None, request: gr.Request = None):
+    """开始生成。目的地固定杭州，出发地按选择或 IP。人设和画像来自当前角色。"""
+    if not GALGAME_ENABLED:
+        # 2026-11-01 下架。入口已隐藏，这里再拦一道，防止旧页面或直接调用。
+        return "这个功能已经下架了。", "_已下架。_"
+    if not user_id:
+        return "⚠️ 请先登录。", ""
+
+    city = STORY_DEST
+    persona = persona or DEFAULT_PERSONA
+
+    # 只读：她的说话方式 + 她记得的你
+    try:
+        character_text = personas.get_prompt(persona, user_id)
+    except Exception as e:
+        print("[剧情] 取人设失败：%s" % e, flush=True)
+        character_text = None
+    profile = build_story_profile(user_id, persona)
+    print("[剧情] 画像 %s" % profile, flush=True)
+
+    # 用户指定了就用他选的；选"自动"才去查 IP
+    if origin_choice and origin_choice != STORY_AUTO:
+        origin = origin_choice
+        print("[剧情] 出发地（手动）：%s" % origin, flush=True)
+    else:
+        try:
+            ip = ""
+            if request is not None:
+                ip = ggeo.client_ip_from_headers(dict(request.headers or {}))
+                if not ip and getattr(request, "client", None):
+                    ip = request.client.host or ""
+            origin = ggeo.locate(ip, destination=city)
+            print("[剧情] 定位 %s → 出发地 %s" % (ip or "(空)", origin), flush=True)
+        except Exception as e:
+            print("[剧情] 定位失败，用新艾利都：%s" % e, flush=True)
+            origin = "新艾利都"
+
+    sid, err = story_jobs.start(user_id, city=city, origin=origin,
+                                profile=profile, character_text=character_text)
+    if not sid:
+        return "⚠️ %s" % err, _story_list_md(user_id)
+
+    who = personas.display_name(persona) if hasattr(personas, "display_name") else persona
+    msg = ("✅ 开始生成。\n\n"
+           "**%s → %s**\n\n"
+           "**和谁：%s**（用的她记得的你：%s）\n\n"
+           "大约 5 分钟。点「刷新」看进度，好了会有「看」。"
+           % (origin, city, who,
+              "、".join(profile.get("likes") or []) or "还没什么印象"))
+    return msg, _story_list_md(user_id)
+
+
+def do_story_refresh(user_id):
+    if not user_id:
+        return "⚠️ 请先登录。", ""
+    return story_jobs.quota_line(user_id), _story_list_md(user_id)
+
+
+def clear_chat():
+    return [], str(uuid.uuid4())
+
+
+# ============ 切换角色 ============
+
+def switch_persona(persona, user_id, session_id):
+    print(f"[切换] persona={persona} user={user_id[:8] if user_id else 'None'}", flush=True)
+
+    if user_id:
+        with _input_lock:
+            _input_buffers.pop(user_id, None)
+
+    history = load_history(user_id, persona) if user_id else []
+    new_bg = get_bg_style(persona, user_id=user_id)
+    new_session = str(uuid.uuid4())
+
+    return history, new_bg, new_session
+
+
+# ============ 登录 / 注册 ============
+
+def do_register(username, password, password2, invite_code):
+    if password != password2:
+        return None, "两次密码不一致", gr.update(visible=True), gr.update(visible=False), []
+    ok, msg = validate_username(username)
+    if not ok:
+        return None, msg, gr.update(visible=True), gr.update(visible=False), []
+    ok, msg = validate_password(password)
+    if not ok:
+        return None, msg, gr.update(visible=True), gr.update(visible=False), []
+
+    user_id, err = repo.register_user(username, password, invite_code)
+    if err:
+        return None, err, gr.update(visible=True), gr.update(visible=False), []
+
+    return user_id, f"✅ 注册成功，欢迎 {username}", gr.update(visible=False), gr.update(visible=True), opening_history(DEFAULT_PERSONA)
+
+
+def do_login(username, password):
+    user_id, err = repo.login_user(username, password)
+    if err:
+        return (
+            None, err,
+            gr.update(visible=True), gr.update(visible=False),
+            [],
+            DEFAULT_PERSONA,
+            get_bg_style(is_login=True),
+            "",
+        )
+
+    history = load_history(user_id, DEFAULT_PERSONA)
+    if not history:
+        history = opening_history(DEFAULT_PERSONA)
+    rel_html = render_relationship(user_id, DEFAULT_PERSONA)
+
+    return (
+        user_id,
+        f"✅ 欢迎回来，{username}",
+        gr.update(visible=False),
+        gr.update(visible=True),
+        history,
+        DEFAULT_PERSONA,
+        get_bg_style(DEFAULT_PERSONA),
+        rel_html,
+    )
+
+
+def do_logout():
+    return (
+        None, "已退出登录",
+        gr.update(visible=True),
+        gr.update(visible=False),
+        [],
+        DEFAULT_PERSONA,
+        get_bg_style(is_login=True),
+        "",
+    )
+
+
+# ============ 免登录试聊 ============
+
+def do_guest(request: gr.Request):
+    """开一个游客会话。不进数据库，不建账号。
+
+    返回和 do_login 一样的八元组，界面不动。
+    """
+    ip = "0.0.0.0"
+    try:
+        ip = request.client.host or "0.0.0.0"
+    except Exception:
+        pass
+
+    token, err = guest.open_session(ip)
+    if not token:
+        wait = guest.ip_wait_seconds(ip)
+        mins = max(1, int(wait / 60))
+        return (
+            None,
+            "她已经见过一个人了。%d 分钟后再来，或者直接注册。" % mins,
+            gr.update(visible=True), gr.update(visible=False),
+            [], DEFAULT_PERSONA, get_bg_style(is_login=True), "",
+            None,
+        )
+
+    openings = OPENINGS.get(guest.GUEST_PERSONA, [])
+    history = []
+    for line in openings:
+        history.append({"role": "assistant", "content": line})
+        guest.append(token, "assistant", line)
+
+    print("[游客] 开 %s ip=%s 轮数=%d" % (token[:8], ip, guest.GUEST_TURNS),
+          flush=True)
+
+    return (
+        None,                      # user_id 保持空，别的面板不会去查库
+        "先说几句。说满 %d 轮，她就要跟你说一件事。" % guest.GUEST_TURNS,
+        gr.update(visible=False),
+        gr.update(visible=True),
+        history,
+        guest.GUEST_PERSONA,
+        get_bg_style(guest.GUEST_PERSONA),
+        "",
+        token,                     # 第 9 个：游客凭证
+    )
+
+
+def _respond_guest(message, chat_history, token, persona):
+    """游客版的 respond。不写库，只走 guest 内存。"""
+    if not message.strip():
+        yield "", chat_history, gr.update(), ""
+        return
+
+    chat_history = chat_history + [{"role": "user", "content": message}]
+    yield "", chat_history, gr.update(), ""
+
+    try:
+        guest.append(token, "user", message)
+        text, segs = guest_chat.ask(token, persona, message)
+        guest.append(token, "assistant", text)
+        turn = guest.bump_turn(token)
+
+        for s in segs:
+            chat_history = chat_history + [{"role": "assistant", "content": s}]
+            yield "", chat_history, gr.update(), ""
+
+        print("[游客] %s 第 %d 轮，回 %d 段" % (token[:8], turn, len(segs)),
+              flush=True)
+
+        if guest.is_over(token):
+            chat_history = chat_history + [
+                {"role": "assistant", "content": "—— %s" % guest.ending_line()},
+                {"role": "assistant",
+                 "content": "（她不再说话了。十轮到了。）"},
+            ]
+            yield gr.update(interactive=False), chat_history, gr.update(), ""
+            return
+    except Exception as e:
+        print("[游客] 出错：%s" % e, flush=True)
+        traceback.print_exc()
+        chat_history = chat_history + [
+            {"role": "assistant", "content": "⚠️ 她那边断了一下，再说一次。"}]
+
+    yield "", chat_history, gr.update(), ""
+
+
+# ============ UI ============
+
+# ============ 个人主页 ============
+
+def _days_since(ts):
+    """UTC 时间戳 → 多少天前。解析失败返回 0，不让主页因为脏数据崩掉。"""
+    if not ts:
+        return 0
+    try:
+        t = datetime.strptime(str(ts)[:19], "%Y-%m-%d %H:%M:%S")
+        return max(0, (datetime.utcnow() - t).days)
+    except Exception:
+        return 0
+
+
+def _valid_hhmm(s: str) -> bool:
+    try:
+        h, m = s.split(":")
+        return 0 <= int(h) <= 23 and 0 <= int(m) <= 59
+    except Exception:
+        return False
+
+
+_SEP = "\x1f"
+# 记忆分组顺序（跟角色顺序一致）
+MEM_ORDER = list(PERSONAS.keys())
+
+
+def _mem_split(user_id):
+    """把记忆按角色拆开。
+
+    返回 (全局列表, {角色: 列表})，每项是 (显示文字, persona+key)。
+    全局记忆单独一组，因为它被所有角色共享。
+    """
+    shared = []
+    per = {p: [] for p in MEM_ORDER}
+    if not user_id:
+        return shared, per
+
+    for m in repo.list_all_memories(user_id):
+        label = ("🔒 " if m["pinned"] else "") + m["value"]
+        val = m["persona"] + _SEP + m["key"]
+        if m["persona"] == "__global__":
+            shared.append((label, val))
+        elif m["persona"] in per:
+            per[m["persona"]].append((label, val))
+    return shared, per
+
+
+def _pin_stat(user_id):
+    """「已锁 N / 上限」——超出的话那几条根本进不了她的记忆。"""
+    if not user_id:
+        return ""
+    n = sum(1 for m in repo.list_all_memories(user_id) if m.get("pinned"))
+    if n <= MEMORY_PINNED_MAX:
+        return f"**已锁 {n} / {MEMORY_PINNED_MAX}**"
+    over = n - MEMORY_PINNED_MAX
+    return (f"**已锁 {n} / {MEMORY_PINNED_MAX}**　"
+            f"⚠️ 超出 {over} 条，这 {over} 条不会出现在她的记忆里")
+
+
+def _mem_refresh(user_id):
+    """返回：统计文字 + 所有记忆分组的新选项（全局 + MEM_ORDER）。"""
+    shared, per = _mem_split(user_id)
+    return [gr.update(value=_pin_stat(user_id))] + [
+        gr.update(choices=shared, value=[])
+    ] + [
+        gr.update(choices=per[p], value=[]) for p in MEM_ORDER
+    ]
+
+
+def _split_value(v):
+    if not v or _SEP not in str(v):
+        return (None, None)
+    p, k = str(v).split(_SEP, 1)
+    return (p, k)
+
+
+def do_save_memory_mode(user_id, choice):
+    """保存"她的记性"。choice 是界面上的中文选项。"""
+    if not user_id:
+        return "先登录。"
+    try:
+        from core import memory_state as _ms
+        _ms.ensure_schema()
+        mode = _ms.MODE_MIXED if choice == "像人" else _ms.MODE_PURE
+        _ms.set_user_mode(user_id, mode)
+        _label = "像人（会记不清一些事，但记得重要的）" if mode == _ms.MODE_MIXED \
+            else "记得细（什么细节都记得，但偶尔像数据库）"
+        return "已保存：**%s**。下一句开始生效。" % _label
+    except Exception as e:
+        return "保存失败：%s" % e
+
+
+def do_preview_memory(user_id, persona):
+    """拿他上一句话，把两种模式的注入段并排打出来。"""
+    if not user_id:
+        return "先登录。", "先登录。"
+    try:
+        from core import recall as _recall
+        from core import memory_state as _ms
+        from core import daily as _daily
+        from db import repository as _repo
+
+        msgs = _repo.get_recent_messages(user_id, persona, limit=20) or []
+        last = ""
+        for m in reversed(msgs):
+            if m.get("role") == "user":
+                last = m.get("content") or ""
+                break
+        if not last.strip():
+            return "还没有你说过的话，先去聊两句。", "还没有你说过的话，先去聊两句。"
+
+        _kws = _recall.keywords(last)
+        hits = _recall.search(user_id, persona, last, exclude_days=2,
+                              limit=8, drop_words=(persona, "小光", "师姐"))
+        if not hits:
+            return ("上一句：**%s**\n\n没有检索到旧记录。" % last,
+                    "上一句：**%s**\n\n没有检索到旧记录。" % last)
+
+        try:
+            _diary = _daily.recent(user_id, persona, days=2) or []
+        except Exception:
+            _diary = []
+        _dd = set(str(d)[:10] for d, _s in _diary)
+
+        try:
+            _pinned = _repo.get_memories_pinned(user_id, persona, limit=50) or []
+            _perm = [x.get("value") for x in _pinned]
+        except Exception:
+            _perm = []
+
+        def _fmt(mode):
+            txt, info = _ms.render(user_id, persona, hits, mode=mode,
+                                   permanent_values=_perm, diary_days=_dd,
+                                   recall_kws=_kws)
+            head = "```\n%s\n```" % _ms.log_line(info)
+            body = txt if txt else "（空）"
+            return "**%s**\n\n%s\n\n```\n%s\n```" % (
+                "pure · 原样" if mode == _ms.MODE_PURE else "mixed · 三档",
+                head, body.strip())
+
+        return _fmt(_ms.MODE_PURE), _fmt(_ms.MODE_MIXED)
+    except Exception as e:
+        return "出错：%s" % e, "出错：%s" % e
+
+
+def do_save_prefs(user_id, style, quiet_on, start, end):
+    if not user_id:
+        return "请先登录"
+    repo.set_user_pref(user_id, "reply_style", style or "normal")
+    if quiet_on:
+        s = (start or "").strip()
+        e = (end or "").strip()
+        if not (_valid_hhmm(s) and _valid_hhmm(e)):
+            return "时间要写成 `23:30` 这种格式"
+        repo.set_user_pref(user_id, "quiet_start", s)
+        repo.set_user_pref(user_id, "quiet_end", e)
+    else:
+        repo.set_user_pref(user_id, "quiet_start", "")
+        repo.set_user_pref(user_id, "quiet_end", "")
+    return "✅ 已保存"
+
+
+def do_mem_action(user_id, action, *groups):
+    """锁定 / 解锁 / 忘掉。groups 是所有分组的勾选结果，合并后统一处理。"""
+    if not user_id:
+        return ("请先登录", *_mem_refresh(user_id))
+
+    sel = []
+    for g in groups:
+        sel.extend(g or [])
+    if not sel:
+        return ("先勾选几条", *_mem_refresh(user_id))
+
+    n = 0
+    for v in sel:
+        p, k = _split_value(v)
+        if not p:
+            continue
+        if action == "lock":
+            repo.set_memory_pinned(user_id, p, k, 1)
+        elif action == "unlock":
+            repo.set_memory_pinned(user_id, p, k, 0)
+        elif action == "delete":
+            repo.delete_memory_any(user_id, p, k)
+        n += 1
+
+    word = {"lock": "锁定", "unlock": "取消锁定", "delete": "忘掉"}.get(action, "处理")
+    return (f"✅ 已{word} {n} 条", *_mem_refresh(user_id))
+
+
+def do_pin(user_id, target, text):
+    """手动让她记住一件事。存进指定角色（或所有角色），锁定，永不被裁剪。"""
+    if not user_id:
+        return ("请先登录", *_mem_refresh(user_id))
+    t = (text or "").strip()
+    if not t:
+        return ("写点什么再点保存", *_mem_refresh(user_id))
+
+    persona = "__global__" if target == "所有角色" else (target or DEFAULT_PERSONA)
+    key = "lock:" + t[:20]
+    repo.upsert_memory(user_id, persona, key, t[:120], priority=9)
+    repo.set_memory_pinned(user_id, persona, key, 1)
+    return ("✅ 记住了，这条不会被忘掉", *_mem_refresh(user_id))
+
+
+def render_profile(user_id):
+    """个人主页：身份、额度、四个角色的关系、统计。
+
+    数据全是现成的，这里只做展示，不改任何业务逻辑。
+    """
+    if not user_id:
+        return ""
+
+    user = repo.get_or_create_user(user_id) or {}
+    role_txt = permissions.role_name(user)
+
+    balance = float(user.get("balance") or 0)
+    days = _days_since(user.get("created_at")) + 1
+    total_msgs = repo.count_messages(user_id)
+    total_ms = len(repo.get_milestones(user_id))
+
+    def stat(caption, value, sub=""):
+        sub_html = f'<div style="font-size:11px;color:#a0a5ad">{sub}</div>' if sub else ""
+        return (
+            '<div style="flex:1;min-width:140px;background:#fff;border:1px solid #e6e8ec;'
+            'border-radius:12px;padding:14px 16px">'
+            f'<div style="font-size:12px;color:#8b9099">{caption}</div>'
+            f'<div style="font-size:18px;font-weight:600;color:#20242b;margin-top:2px">{value}</div>'
+            f'{sub_html}</div>'
+        )
+
+    mem_n = repo.count_memories(user_id)
+    head = (
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">'
+        + stat("身份", role_txt)
+        + stat("剩余额度", f"{balance:.2f} 元", "1 元 ≈ 100 条")
+        + stat("来过", f"{days} 天")
+        + stat("说话", f"{total_msgs} 句", f"纪念 {total_ms} 件")
+        + stat("她记得", f"{mem_n} 件", "在下面「她的记忆」里")
+        + "</div>"
+    )
+
+    cards = []
+    for p in PERSONAS:
+        st = repo.get_character_state(user_id, p) or {}
+        intimacy = float(st.get("intimacy") or 0)
+        is_lover = bool(st.get("confessed_at"))
+        stage = relationship.get_stage(intimacy, is_lover)
+        together = (_days_since(st.get("confessed_at")) + 1) if is_lover else 0
+        line = relationship.stage_line(stage, intimacy, is_lover, together)
+        pct = relationship.calc_progress(intimacy, stage)
+
+        cards.append(
+            '<div style="background:#fff;border:1px solid #e6e8ec;border-radius:14px;'
+            'padding:16px 18px">'
+            '<div style="display:flex;justify-content:space-between;align-items:baseline">'
+            f'<div style="font-size:15px;font-weight:600;color:#20242b">{p}</div>'
+            f'<div style="font-size:12px;color:#a0a5ad">{intimacy:.0f}</div>'
+            "</div>"
+            '<div style="height:6px;background:#eef0f3;border-radius:99px;overflow:hidden;'
+            'margin:10px 0">'
+            f'<i style="display:block;height:100%;width:{pct}%;'
+            'background:linear-gradient(90deg,#7ba7a0,#c8553d)"></i>'
+            "</div>"
+            f'<div style="font-size:12px;color:#6b7280;line-height:1.7">{line}</div>'
+            "</div>"
+        )
+
+    return (
+        '<div style="max-width:780px">'
+        + head
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">'
+        + "".join(cards)
+        + "</div></div>"
+    )
+
+
+def open_profile(user_id, persona=None):
+    persona = persona or DEFAULT_PERSONA
+    style = repo.get_user_pref(user_id, "reply_style", "normal") if user_id else "normal"
+    qs = repo.get_user_pref(user_id, "quiet_start", "") if user_id else ""
+    qe = repo.get_user_pref(user_id, "quiet_end", "") if user_id else ""
+    # 「她的记性」单选框要显示已保存的值，不然会永远停在默认那个
+    try:
+        from core import memory_state as _ms
+        _mm = "像人" if _ms.resolve_mode(user_id) == _ms.MODE_MIXED else "记得细"
+    except Exception:
+        _mm = "像人"
+    return (
+        gr.update(visible=False),          # chat_group
+        gr.update(visible=True),           # profile_group
+        render_profile(user_id),           # profile_html
+        gr.update(value=style),            # style_radio
+        gr.update(value=bool(qs and qe)),  # quiet_on
+        gr.update(value=qs or "23:30"),    # quiet_start
+        gr.update(value=qe or "07:00"),    # quiet_end
+        gr.update(value=_mm),              # mem_radio
+        *_mem_refresh(user_id),            # 全局 + 6 个角色的记忆分组
+        gr.update(value=persona),          # pin_target 默认当前角色
+    )
+
+
+def do_change_password(user_id, old_pwd, new_pwd, new_pwd2):
+    if not user_id:
+        return "请先登录"
+    user = repo.get_or_create_user(user_id) or {}
+    if not verify_password(old_pwd or "", user.get("password_hash") or ""):
+        return "❌ 旧密码不对"
+    ok, msg = validate_password(new_pwd or "")
+    if not ok:
+        return f"❌ {msg}"
+    if new_pwd != new_pwd2:
+        return "❌ 两次新密码不一致"
+    repo.update_password(user_id, hash_password(new_pwd))
+    return "✅ 密码已修改，下次用新密码登录"
+
+
+# ===== 备案信息页脚 =====
+# 工信部要求：网站页脚必须展示备案号，且能点进 beian.miit.gov.cn。
+# 放在 Blocks 最外层末尾，登录页和聊天页都会显示。
+FOOTER_HTML = _load_template("footer.html")
+# 页脚备案号
+
+
+with gr.Blocks(title="陪你AI", theme=gr.themes.Soft(), css=CSS) as demo:
+    user_id_state = gr.State(value=None)
+    session_id_state = gr.State(value=str(uuid.uuid4()))
+    persona_state = gr.State(value=DEFAULT_PERSONA)
+    # 游客的临时凭证。有它就走免登录路径，没有就是正常登录用户。
+    guest_token_state = gr.State(value=None)
+
+    bg_layer = gr.HTML(value=get_bg_style(is_login=True), elem_id="bg-layer")
+
+    # 先出警告，点"我明白了"才显示登录区
+    with gr.Group(visible=SHOW_STARTUP_NOTICE) as notice_group:
+        gr.HTML(NOTICE_HTML)
+        notice_btn = gr.Button("我明白了，进去吧", variant="primary")
+
+    with gr.Group(visible=not SHOW_STARTUP_NOTICE) as login_group:
+        gr.HTML(BANNER_XLL_HTML)
+        gr.Markdown(
+            "# 陪你 AI\n"
+            "**她记得你说过的话。** 不是聊天记录回放——你手酸过、你明天有实训，"
+            "这些她会自己想起来。\n\n"
+            "有问题找我：QQ **3427873405**"
+        )
+        with gr.Tab("登录"):
+            login_username = gr.Textbox(label="用户名")
+            login_password = gr.Textbox(label="密码", type="password")
+            login_btn = gr.Button("登录", variant="primary")
+        with gr.Tab("注册"):
+            reg_username = gr.Textbox(label="用户名")
+            reg_password = gr.Textbox(label="密码", type="password")
+            reg_password2 = gr.Textbox(label="确认密码", type="password")
+            reg_invite = gr.Textbox(label="邀请码")
+            reg_btn = gr.Button("注册", variant="primary")
+        login_msg = gr.Markdown("")
+
+        # 免登录试聊：不建账号，只给十轮。
+        # 十轮不是试用，是一个完整的小故事，讲完她会自己说"我会忘"。
+        with gr.Row():
+            guest_btn = gr.Button("不注册，先和她说几句（10 轮）", variant="secondary")
+
+    with gr.Group(visible=False) as chat_group:
+        with gr.Row():
+            persona_dropdown = gr.Dropdown(
+                choices=list(PERSONAS.keys()),
+                value=DEFAULT_PERSONA,
+                label="选择角色",
+                scale=2,
+                elem_id="persona-select",
+            )
+            new_btn_open = gr.Button("＋", scale=0)
+            logout_btn = gr.Button("退出登录", scale=0)
+            ms_btn = gr.Button("纪念", scale=0)
+            pf_btn = gr.Button("我的", scale=0)
+
+        with gr.Group(visible=False) as create_group:
+            gr.Markdown(
+                "### 新建一个她\n"
+                "**只要三个问题。** 材料越具体，她越像。\n\n"
+                "_她不是你认识的那个人。她是根据你给的材料重建的。_"
+            )
+            new_name = gr.Textbox(label="她叫什么", placeholder="小柳")
+            new_call = gr.Textbox(label="她怎么称呼你", placeholder="魈公 / 宝宝 / 喂")
+            new_quote = gr.Textbox(
+                label="她说过的、你最记得的一句话（原话最好）",
+                lines=3, placeholder="你别老是自己扛着吧",
+            )
+            new_state = gr.Dropdown(
+                label="你们现在",
+                choices=["还在一起", "分开了，还在联系", "分开了，不联系了", "她已经不在了"],
+                value="分开了，不联系了",
+            )
+            new_target = gr.Dropdown(
+                label="你想要的是",
+                choices=["复合", "告别", "恋爱", "自定义"],
+                value="复合",
+            )
+            with gr.Accordion("有聊天记录吗？（可选，但会像很多）", open=False):
+                new_raw = gr.Textbox(
+                    label="把聊天记录粘进来",
+                    lines=8,
+                    placeholder="她说：……\n我说：……\n（什么格式都行，认不出来我来猜）",
+                )
+            new_go = gr.Button("生成她", variant="primary")
+            new_msg = gr.Markdown("")
+            with gr.Row():
+                del_btn = gr.Button("删掉现在那个", variant="stop", size="sm")
+                del_msg = gr.Markdown("")
+
+        relationship_html = gr.HTML("")
+
+
+        # 顶部状态条：像微信标题栏那样显示"XX正在输入……"
+        typing_status = gr.Markdown("", elem_id="typing-status")
+
+        # 关系状态条（只有私有角色会显示内容）
+        with gr.Row():
+            stage_bar = gr.Markdown("", elem_id="stage-bar", scale=4)
+            tell_btn = gr.Button("告诉她：我们已经结束了", scale=0, visible=False)
+
+        # 二次确认：不可逆的操作，必须先说清楚后果
+        with gr.Group(visible=False) as tell_confirm_group:
+            tell_confirm_md = gr.Markdown(
+                "### 确定要告诉她吗？\n\n"
+                "她会知道你们已经结束了。\n\n"
+                "- 她会开始躲，会岔开话题\n"
+                "- 你们回不到现在这个状态了\n"
+                "- 想重来，只能重新建一个她\n\n"
+                "**这一步不能撤回。**"
+            )
+            with gr.Row():
+                tell_yes = gr.Button("确定，告诉她", variant="primary")
+                tell_no = gr.Button("我再想想")
+
+        # 告别页：她走了之后，把她说过的话留下来
+        with gr.Group(visible=False) as farewell_group:
+            farewell_md = gr.Markdown("")
+
+        chatbot = gr.Chatbot(
+            height=460,
+            elem_id="chatbot",
+            group_consecutive_messages=False,
+        )
+        msg = gr.Textbox(placeholder="说点什么...", label="消息")
+
+        # 十轮讲完之后，这里出那一行字
+        guest_end_md = gr.Markdown("")
+
+        with gr.Row():
+            send_btn = gr.Button("发送", variant="primary")
+            clear_btn = gr.Button("清空")
+
+    # ===== 纪念页（独立一屏）=====
+    # 和聊天区互斥显示：点"纪念"藏起聊天、点"返回聊天"换回来。
+    with gr.Group(visible=False) as milestone_group:
+        with gr.Row():
+            gr.Markdown("### 🕯️ 我们到过的地方")
+            ms_back_btn = gr.Button("返回聊天", scale=0)
+        milestone_html = gr.HTML("")
+
+    # ===== 个人主页（独立一屏）=====
+    # 和聊天区互斥：点"我的"藏起聊天，点"返回聊天"换回来。
+    with gr.Group(visible=False, elem_id="profile-page") as profile_group:
+        with gr.Row():
+            gr.Markdown("### 👤 我的")
+            pf_back_btn = gr.Button("返回聊天", scale=0)
+        profile_html = gr.HTML("")
+        with gr.Accordion("修改密码", open=False):
+            old_pwd = gr.Textbox(label="旧密码", type="password")
+            new_pwd = gr.Textbox(label="新密码", type="password")
+            new_pwd2 = gr.Textbox(label="确认新密码", type="password")
+            pwd_btn = gr.Button("修改密码")
+            pwd_msg = gr.Markdown("")
+
+        with gr.Accordion("她的说话方式", open=False):
+            style_radio = gr.Radio(
+                choices=[("短句", "short"), ("正常", "normal"), ("说多点", "long")],
+                value="normal", label="回复长短",
+            )
+            quiet_on = gr.Checkbox(label="开启免打扰（这段时间她像在睡觉）", value=False)
+            with gr.Row():
+                quiet_start = gr.Textbox(label="从", value="23:30", scale=1)
+                quiet_end = gr.Textbox(label="到", value="07:00", scale=1)
+            pref_btn = gr.Button("保存设置")
+            pref_msg = gr.Markdown("")
+
+        with gr.Accordion("她的记性（本地测试用）", open=False):
+            gr.Markdown(
+                "她怎么「记起」以前的事。\n\n"
+                "- **像人**：时间越久的越模糊，近的更清楚。"
+                "她不会说「我忘了」，只会说「你再说一遍那个」。\n"
+                "- **记得细**：所有翻到的旧记录都原样给你，细节全在，但像数据库。\n\n"
+                "_这是原来纯 BM25 的行为，出问题就切回它。_"
+            )
+            mem_radio = gr.Radio(
+                choices=["像人", "记得细"],
+                value="像人",
+                label="她的记性",
+            )
+            with gr.Row():
+                mem_save = gr.Button("保存", variant="primary", scale=1)
+                mem_preview = gr.Button("对比一下（拿你上一句话）", scale=2)
+            mem_msg = gr.Markdown("")
+            with gr.Row():
+                with gr.Column():
+                    mem_out_pure = gr.Markdown("")
+                with gr.Column():
+                    mem_out_mixed = gr.Markdown("")
+
+        with gr.Accordion("换背景（老友专属）", open=False):
+            gr.Markdown(
+                "给某个角色换一张背景。**切到那个角色时生效。**\n\n"
+                "_每张我要人工看一眼才会放出来，可能要等一会儿。_"
+            )
+            bg_persona = gr.Dropdown(
+                choices=list(PERSONAS.keys()), value=DEFAULT_PERSONA,
+                label="给哪个角色换",
+            )
+            bg_img = gr.Image(
+                label="选一张图", type="filepath", sources=["upload"],
+                height=200,
+            )
+            with gr.Row():
+                bg_set = gr.Button("换上", variant="primary")
+                bg_reset = gr.Button("用回原来的")
+            bg_msg = gr.Markdown("")
+
+        with gr.Accordion("把这段带走（导出）", open=False):
+            gr.Markdown(
+                "**聊天记录免费，纪念册收费。**\n\n"
+                "_记录是你自己的，随时能下载。纪念册是排好版的，带封面和她的日记。_"
+            )
+            export_persona = gr.Dropdown(choices=[], value=None, label="选角色")
+            export_load = gr.Button("载入我的角色")
+            with gr.Row():
+                export_txt_btn = gr.Button("下载聊天记录（免费）")
+                export_book_btn = gr.Button("做一份纪念册（3 元）", variant="primary")
+            export_all_btn = gr.Button("全部角色一份（9.9 元）")
+            export_msg = gr.Markdown("")
+
+        with gr.Accordion("给她做一趟旅行（5 元一次）", open=False, visible=GALGAME_ENABLED):
+            gr.Markdown(
+                "**七天。** 从你家出发，到她那座城，然后回来。\n\n"
+                "_每次 5 元，一共能做 5 次。做好了会给你一个链接，点开就能看。_"
+            )
+            gr.Markdown("**去哪：杭州**（固定）")
+            story_origin = gr.Dropdown(
+                choices=STORY_ORIGINS, value=STORY_AUTO,
+                label="从哪出发",
+            )
+            with gr.Row():
+                story_go = gr.Button("生成我的七日", variant="primary")
+                story_refresh = gr.Button("刷新")
+            story_quota = gr.Markdown("")
+            story_msg = gr.Markdown("")
+            story_list = gr.Markdown("_还没有。_")
+
+        with gr.Accordion("她的记忆", open=True):
+            gr.Markdown(
+                "她记得的事，按角色分开列在这里。\n\n"
+                "勾选后可以**锁定**（永不遗忘）或**忘掉**。"
+                "🔒 表示已锁定。每个角色能锁的条数有上限，"
+                "超了会自动让位给她自己记的事。"
+            )
+            pin_stat = gr.Markdown("", elem_id="pin-stat")
+            gr.Markdown("#### 所有角色都记得")
+            mem_global = gr.CheckboxGroup(
+                choices=[], label="共享记忆", interactive=True, elem_id="memg-shared",
+            )
+            mem_boxes = {}
+            for _i, _p in enumerate(MEM_ORDER):
+                gr.Markdown(f"#### {_p}")
+                mem_boxes[_p] = gr.CheckboxGroup(
+                    choices=[], label=_p, interactive=True, show_label=False,
+                    elem_id=f"memg-{_i}",
+                )
+            with gr.Row():
+                mem_lock_btn = gr.Button("🔒 锁定选中的")
+                mem_unlock_btn = gr.Button("🔓 取消锁定")
+                mem_del_btn = gr.Button("🗑 忘掉选中的")
+            mem_msg = gr.Markdown("")
+            gr.Markdown("---")
+            gr.Markdown("#### 手动让她记住")
+            with gr.Row():
+                pin_target = gr.Dropdown(
+                    choices=list(PERSONAS.keys()) + ["所有角色"],
+                    value=DEFAULT_PERSONA, label="让谁记住", scale=1,
+                    elem_id="pin-target",
+                )
+                pin_text = gr.Textbox(
+                    label="内容", placeholder="比如：我的生日是 10 月 1 日", scale=3,
+                )
+            pin_btn = gr.Button("记住这件事")
+
+    # ============ 事件绑定 ============
+
+    notice_btn.click(
+        lambda: (gr.update(visible=False), gr.update(visible=True)),
+        None,
+        [notice_group, login_group],
+    )
+
+    guest_btn.click(
+        do_guest,
+        None,
+        [user_id_state, login_msg, login_group, chat_group, chatbot,
+         persona_state, bg_layer, relationship_html, guest_token_state],
+    )
+
+    login_btn.click(
+        do_login,
+        [login_username, login_password],
+        [user_id_state, login_msg, login_group, chat_group, chatbot,
+         persona_state, bg_layer, relationship_html],
+    )
+
+    reg_btn.click(
+        do_register,
+        [reg_username, reg_password, reg_password2, reg_invite],
+        [user_id_state, login_msg, login_group, chat_group, chatbot],
+    ).then(
+        lambda uid: (DEFAULT_PERSONA, get_bg_style(DEFAULT_PERSONA), "") if uid else (DEFAULT_PERSONA, get_bg_style(is_login=True), ""),
+        [user_id_state],
+        [persona_state, bg_layer, relationship_html],
+    )
+
+    logout_btn.click(
+        do_logout,
+        None,
+        [user_id_state, login_msg, login_group, chat_group, chatbot,
+         persona_state, bg_layer, relationship_html],
+    )
+
+    # 进纪念页（藏起聊天区）
+    ms_btn.click(
+        open_milestones,
+        [user_id_state, persona_state],
+        [chat_group, milestone_group, milestone_html],
+    )
+
+    # 回聊天
+    ms_back_btn.click(
+        lambda: (gr.update(visible=True), gr.update(visible=False)),
+        None,
+        [chat_group, milestone_group],
+    )
+
+    # 进个人主页（藏起聊天区）
+    _mem_outputs = [pin_stat, mem_global] + [mem_boxes[p] for p in MEM_ORDER]
+    pf_btn.click(
+        open_profile,
+        [user_id_state, persona_state],
+        [chat_group, profile_group, profile_html, style_radio, quiet_on,
+         quiet_start, quiet_end, mem_radio] + _mem_outputs + [pin_target],
+    )
+
+    # 保存说话方式 / 免打扰
+    mem_save.click(
+        do_save_memory_mode,
+        inputs=[user_id_state, mem_radio],
+        outputs=[mem_msg],
+    )
+    mem_preview.click(
+        do_preview_memory,
+        inputs=[user_id_state, persona_state],
+        outputs=[mem_out_pure, mem_out_mixed],
+    )
+    pref_btn.click(
+        do_save_prefs,
+        [user_id_state, style_radio, quiet_on, quiet_start, quiet_end],
+        [pref_msg],
+    )
+
+    # 记忆管理：锁定 / 取消锁定 / 忘掉（所有分组一起处理）
+    _mem_inputs = [user_id_state] + _mem_outputs
+    _mem_results = [mem_msg] + _mem_outputs
+    mem_lock_btn.click(
+        lambda u, *gs: do_mem_action(u, "lock", *gs),
+        _mem_inputs, _mem_results,
+    )
+    mem_unlock_btn.click(
+        lambda u, *gs: do_mem_action(u, "unlock", *gs),
+        _mem_inputs, _mem_results,
+    )
+    mem_del_btn.click(
+        lambda u, *gs: do_mem_action(u, "delete", *gs),
+        _mem_inputs, _mem_results,
+    )
+    pin_btn.click(
+        do_pin,
+        [user_id_state, pin_target, pin_text],
+        _mem_results,
+    )
+
+    # 从主页回聊天
+    pf_back_btn.click(
+        lambda: (gr.update(visible=True), gr.update(visible=False)),
+        None,
+        [chat_group, profile_group],
+    )
+
+    # 改密码
+    pwd_btn.click(
+        do_change_password,
+        [user_id_state, old_pwd, new_pwd, new_pwd2],
+        [pwd_msg],
+    )
+
+    new_btn_open.click(toggle_create, None, [create_group])
+
+    del_btn.click(
+        do_delete_persona,
+        [user_id_state],
+        [del_msg, persona_dropdown, create_group],
+    ).then(
+        lambda p: p,
+        [persona_dropdown],
+        [persona_state],
+    )
+
+    new_go.click(
+        do_create_persona,
+        [new_name, new_call, new_quote, new_state, new_target,
+         user_id_state, session_id_state, new_raw],
+        [new_msg, create_group, persona_dropdown, chatbot, bg_layer, session_id_state],
+    ).then(
+        lambda p: p,
+        [persona_dropdown],
+        [persona_state],
+    ).then(
+        render_relationship,
+        [user_id_state, persona_state],
+        [relationship_html],
+    )
+
+    persona_dropdown.change(
+        switch_persona,
+        [persona_dropdown, user_id_state, session_id_state],
+        [chatbot, bg_layer, session_id_state],
+    ).then(
+        lambda p: p,
+        [persona_dropdown],
+        [persona_state],
+    ).then(
+        render_relationship,
+        [user_id_state, persona_state],
+        [relationship_html],
+    ).then(
+        _refresh_stage_wrap,
+        [user_id_state, persona_state],
+        [stage_bar, tell_btn, farewell_md, farewell_group],
+    )
+
+    bg_set.click(
+        do_set_bg,
+        [user_id_state, bg_persona, bg_img],
+        [bg_msg],
+    )
+
+    bg_reset.click(
+        do_reset_bg,
+        [user_id_state, bg_persona],
+        [bg_msg],
+    )
+
+    export_load.click(
+        do_export_refresh,
+        [user_id_state],
+        [export_msg, export_persona],
+    )
+
+    export_txt_btn.click(
+        do_export_txt,
+        [user_id_state, export_persona],
+        [export_msg],
+    )
+
+    export_book_btn.click(
+        do_export_book,
+        [user_id_state, export_persona],
+        [export_msg],
+    )
+
+    export_all_btn.click(
+        do_export_all,
+        [user_id_state],
+        [export_msg],
+    )
+
+    story_go.click(
+        do_story_start,
+        [user_id_state, story_origin, persona_state],
+        [story_msg, story_list],
+    ).then(
+        do_story_refresh,
+        [user_id_state],
+        [story_quota, story_list],
+    )
+
+    story_refresh.click(
+        do_story_refresh,
+        [user_id_state],
+        [story_quota, story_list],
+    )
+
+    tell_btn.click(show_tell_confirm, None, [tell_confirm_group])
+    tell_no.click(hide_tell_confirm, None, [tell_confirm_group])
+    tell_yes.click(
+        do_tell,
+        [user_id_state, persona_state],
+        [stage_bar, tell_btn, farewell_md, farewell_group],
+    ).then(
+        hide_tell_confirm, None, [tell_confirm_group],
+    )
+
+    msg.submit(
+        respond,
+        [msg, chatbot, user_id_state, session_id_state, persona_state, guest_token_state],
+        [msg, chatbot, relationship_html, typing_status],
+    ).then(
+        _refresh_stage_wrap,
+        [user_id_state, persona_state],
+        [stage_bar, tell_btn, farewell_md, farewell_group],
+    )
+    send_btn.click(
+        respond,
+        [msg, chatbot, user_id_state, session_id_state, persona_state, guest_token_state],
+        [msg, chatbot, relationship_html, typing_status],
+    ).then(
+        _refresh_stage_wrap,
+        [user_id_state, persona_state],
+        [stage_bar, tell_btn, farewell_md, farewell_group],
+    )
+    clear_btn.click(clear_chat, None, [chatbot, session_id_state])
+
+    # 页脚：备案号（所有页面底部都显示）
+    gr.HTML(FOOTER_HTML)
+
+
+# ---- IP 地区拦截（默认关闭；开关在 ipblock.json）----
+# 注意：launch() 会用 App.create_app() 重新建一个 app，
+# 直接给 demo.app 挂中间件会被丢掉。所以这里包装 create_app。
+# 纯 ASGI 中间件，不缓冲响应，不影响流式输出。
+# 关闭时只做一次 os.stat，零开销；查询失败一律放行。
+from core.ipblock import IPBlockMiddleware
+import gradio.routes as _gr_routes
+
+_orig_create_app = _gr_routes.App.create_app
+
+
+def _story_page(sid: str):
+    """把一份生成好的剧情渲染成网页。"""
+    from fastapi.responses import HTMLResponse
+
+    row = repo.get_story(sid)
+    if not row:
+        return HTMLResponse("<meta charset='utf-8'><h2>找不到这一份</h2>", status_code=404)
+    if row.get("status") != "done":
+        msg = story_jobs.status_line(row)
+        return HTMLResponse(
+            "<meta charset='utf-8'><meta http-equiv='refresh' content='4'>"
+            "<body style='background:#14171c;color:#e8e6e3;font-family:sans-serif;"
+            "display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>"
+            "<div style='text-align:center'><h2 style='font-weight:400'>%s</h2>"
+            "<p style='color:#8a9099;font-size:14px'>这个页面每 4 秒自动刷新</p></div></body>" % msg,
+            status_code=200,
+        )
+
+    try:
+        import json as _json
+        with open(row["file"], encoding="utf-8") as f:
+            data = _json.load(f)
+        title = "%s · %s" % (row.get("origin") or "", row.get("city") or "")
+        return HTMLResponse(gplayer.render_html(data, title))
+    except Exception as e:
+        return HTMLResponse("<meta charset='utf-8'><h2>读不出来：%s</h2>" % e, status_code=500)
+
+
+def _keepsake_file(name: str, dl: int = 0):
+    """把纪念册 / 聊天记录发给浏览器。
+
+    文件名是纯 ASCII 短码（不会有编码问题）。
+    友好名（中文）存在同名 .name 边车里，下载时塞进 Content-Disposition。
+    """
+    from fastapi.responses import FileResponse, HTMLResponse
+    import re as _re
+
+    if not _re.fullmatch(r"[A-Za-z0-9_-]{1,64}(\.[A-Za-z0-9]{1,6})?", name or ""):
+        return HTMLResponse("<meta charset='utf-8'><h2>地址不对</h2>", status_code=400)
+
+    path = os.path.join(gkeep.OUT_DIR, name)
+    if not os.path.isfile(path) or name.endswith(".name"):
+        return HTMLResponse("<meta charset='utf-8'><h2>找不到这一份</h2>", status_code=404)
+
+    media = ("text/plain; charset=utf-8" if name.endswith(".txt")
+             else "text/html; charset=utf-8")
+    if dl:
+        return FileResponse(path, media_type=media,
+                            filename=name)
+    return FileResponse(path, media_type=media)
+
+
+def _keepsake_dl(name: str):
+    """下载专用路径。不用查询参数 —— nginx 那边对 ?dl=1 处理不稳，会偶发 400。"""
+    return _keepsake_file(name, 1)
+
+
+def _create_app_with_ipblock(*args, **kwargs):
+    _app = _orig_create_app(*args, **kwargs)
+    try:
+        _app.add_api_route("/story/{sid}", _story_page, methods=["GET"])
+        _app.add_api_route("/keepsake/dl/{name}", _keepsake_dl, methods=["GET"])
+        _app.add_api_route("/keepsake/{name}", _keepsake_file, methods=["GET"])
+    except Exception as _e:
+        print(f"[剧情] 播放页路由挂载失败：{_e}", flush=True)
+    try:
+        _app.add_middleware(IPBlockMiddleware)
+    except Exception as _e:
+        # 挂不上就放行所有请求，绝不因为拦截功能把站点搞挂
+        print(f"[IP拦截] 中间件挂载失败，全部放行：{_e}", flush=True)
+    return _app
+
+
+_gr_routes.App.create_app = staticmethod(_create_app_with_ipblock)
+
+# ==========================================================
+# 一个无用的函数
+# ==========================================================
+# 它永远不会被调用。
+# 它不返回任何东西，也不改变任何东西。
+# 留在这里，是因为一个仓库里总该有一处
+# 不为了功能而存在的地方。
+
+
+def _nothing():
+    """什么都不做。"""
+    return None
+
+
+# ==========================================================
+
+
+if __name__ == "__main__":
+    _where = "只有本机可访问" if HOST == "127.0.0.1" else "局域网 / 公网可访问"
+    print(f"[启动] 监听 {HOST}:{PORT}（{_where}）", flush=True)
+    demo.queue(default_concurrency_limit=None).launch(
+        server_name=HOST,
+        server_port=PORT,
+        allowed_paths=[os.path.abspath("static")],
+    )

@@ -180,7 +180,14 @@ def apply(user_id, persona, etype, intensity=1, summary=""):
             scale = room / abs(t)
             a, t, e = a * scale, t * scale, e * scale   # 按同一比例缩，保住相对关系
 
-        if a:
+        # 陪伴模式不涨好感度（事件带来的信任/情绪照旧）
+        try:
+            from core import mode as _mode
+            _companion = _mode.is_companion(user_id)
+        except Exception:
+            _companion = False
+
+        if a and not _companion:
             repo.update_character_intimacy(user_id, persona, a)
         if t:
             repo.update_character_trust(user_id, persona, t)

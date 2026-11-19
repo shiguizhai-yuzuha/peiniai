@@ -13,6 +13,7 @@ from config import (
     QUENCH_ENABLED,
 )
 from core import client, memory, certainty, stage, promises, relationship, milestones, permissions
+from core import mode as mode_mod
 from core import deai
 from core import voice_cfg
 from core.guard import guard
@@ -214,10 +215,14 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
     time_ctx = time_context.get_time_context(last_active_at)
 
     days_since = _days_since(last_active_at)
-    current_intimacy = char.get("intimacy", 0)
-    delta = relationship.calc_delta(user_id, combined, days_since, current_intimacy)
-    repo.update_character_intimacy(user_id, persona, delta)
-    relationship.record_gain(user_id, delta)
+    in_companion = mode_mod.is_companion(user_id)
+
+    # 陪伴模式：不涨好感度，也不记增长曲线。其余（情绪、活跃时间）照旧。
+    if not in_companion:
+        current_intimacy = char.get("intimacy", 0)
+        delta = relationship.calc_delta(user_id, combined, days_since, current_intimacy)
+        repo.update_character_intimacy(user_id, persona, delta)
+        relationship.record_gain(user_id, delta)
     repo.update_last_active(user_id)
 
     new_emotion = update_emotion(prev_emotion, combined)
@@ -233,7 +238,10 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
     is_lover = bool(char.get("confessed_at"))
     extra_prompt = None
 
-    if relationship.is_confession(combined) and not is_lover:
+    if in_companion:
+        # 陪伴模式：不判表白、不推进关系、不发恋爱提示
+        extra_prompt = None
+    elif relationship.is_confession(combined) and not is_lover:
         result = relationship.confess_result(intimacy)
         extra_prompt = CONFESS_PROMPTS[result]
         if result == "accept":
@@ -248,10 +256,11 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
     new_milestones = milestones.check_and_unlock(user_id, persona)
 
     # 关系状态：只有私有角色会走，其他角色零开销
-    try:
-        stage.advance(user_id, persona, combined)
-    except Exception as _e:
-        print(f"[状态] 推进失败，跳过：{_e}", flush=True)
+    if not in_companion:
+        try:
+            stage.advance(user_id, persona, combined)
+        except Exception as _e:
+            print(f"[状态] 推进失败，跳过：{_e}", flush=True)
 
     # 承诺：到期了没兑现？现在结算
     try:

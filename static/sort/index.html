@@ -36,6 +36,9 @@
   <button id="algoInsert">插入</button>
   <button id="algoQuick" class="on">快排</button>
   <button id="algoBucket">桶</button>
+  <button id="algoMerge">归并</button>
+  <button id="algoHeap">堆</button>
+  <button id="algoShell">希尔</button>
   <span class="lab">速度</span>
   <input type="range" id="speed" min="1" max="30" value="25">
   <button id="start">开始</button>
@@ -48,7 +51,7 @@ const ctx = cv.getContext("2d");
 const statsEl = document.getElementById("stats");
 
 let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
-const N = 96;
+const N = 128;
 
 let data = [], target = null, phase = "idle";
 let algo = "quick", delay = 6;
@@ -132,7 +135,76 @@ function* bucket(a){
   }
 }
 
-const ALGOS = {bubble, insert: insertion, quick, bucket};
+
+function* mergeSort(a){
+  const buf = a.slice();
+  function* ms(lo, hi){
+    if (hi - lo < 2) return;
+    const mid = (lo + hi) >> 1;
+    yield* ms(lo, mid);
+    yield* ms(mid, hi);
+    let i = lo, j = mid, k = lo;
+    while (i < mid || j < hi){
+      comparisons++;
+      if (j >= hi || (i < mid && a[i] <= a[j])){ buf[k] = a[i++]; }
+      else { buf[k] = a[j++]; }
+      k++;
+    }
+    for (let t = lo; t < hi; t++){
+      a[t] = buf[t];
+      swaps++;
+      yield ["swap", t, t];
+    }
+  }
+  yield* ms(0, a.length);
+}
+
+function* heapSort(a){
+  const n = a.length;
+  function* sift(start, end){
+    let root = start;
+    while (root * 2 + 1 <= end){
+      let child = root * 2 + 1;
+      comparisons++;
+      if (child + 1 <= end && a[child] < a[child + 1]) child++;
+      if (a[root] < a[child]){
+        [a[root], a[child]] = [a[child], a[root]];
+        swaps++;
+        yield ["swap", root, child];
+        root = child;
+      } else return;
+    }
+  }
+  for (let start = Math.floor((n - 2) / 2); start >= 0; start--) yield* sift(start, n - 1);
+  for (let end = n - 1; end > 0; end--){
+    [a[0], a[end]] = [a[end], a[0]];
+    swaps++;
+    yield ["swap", 0, end];
+    yield* sift(0, end - 1);
+  }
+}
+
+function* shellSort(a){
+  let gap = Math.floor(a.length / 2);
+  while (gap > 0){
+    for (let i = gap; i < a.length; i++){
+      const k = a[i];
+      let j = i;
+      while (j >= gap){
+        comparisons++;
+        yield ["cmp", j - gap, j];
+        if (a[j - gap] > k){ a[j] = a[j - gap]; swaps++; j -= gap; yield ["swap", j, j + gap]; }
+        else break;
+      }
+      a[j] = k;
+      yield ["set", j, j];
+    }
+    gap = Math.floor(gap / 2);
+  }
+}
+
+const ALGOS = {bubble, insert: insertion, quick, bucket,
+               merge: mergeSort, heap: heapSort, shell: shellSort};
 
 /* ---------- 尺寸 ---------- */
 function resize(){
@@ -296,7 +368,8 @@ function buildTarget(){
 
 /* ---------- UI ---------- */
 const btns = {
-  algoBubble: "bubble", algoInsert: "insert", algoQuick: "quick", algoBucket: "bucket"
+  algoBubble: "bubble", algoInsert: "insert", algoQuick: "quick", algoBucket: "bucket",
+  algoMerge: "merge", algoHeap: "heap", algoShell: "shell"
 };
 Object.keys(btns).forEach(id => {
   document.getElementById(id).addEventListener("click", () => {

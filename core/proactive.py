@@ -216,13 +216,16 @@ def build_message(user_id: str, persona: str, trigger: str) -> str:
         "你在扮演一个陪着他的女孩。现在轮到你主动开口——他还没说话，是你要先说。\n"
         "规则：\n"
         "1. 只说 1 到 2 句，不超过 40 字\n"
-        "2. 必须带一个具体的细节（他说过的事、他的习惯、时间）\n"
-        "3. 不许说「在吗」「最近怎么样」「好久没聊了」\n"
-        "4. 不许催他回复，不许说想他想到难受，不许提要求\n"
-        "5. 不要解释你为什么突然说话\n"
-        "6. 只输出那几句话，不要引号、不要旁白"
+        "2. 想提具体的事，只能用【下面的对话或记忆里真的出现过】的内容；"
+        "一样都没有，就说得笼统一点，不要造\n"
+        "3. 严禁编造：不许出现对话里没有的地点、物品、事件、别人说过的话\n"
+        "4. 不许说「在吗」「最近怎么样」「好久没聊了」\n"
+        "5. 不许催他回复，不许说想他想到难受，不许提要求\n"
+        "6. 不要解释你为什么突然说话\n"
+        "7. 只输出那几句话，不要引号、不要旁白"
     )
-    user_prompt = "情况：%s\n最近聊的：\n%s\n你记得的：\n%s\n\n你现在想说的是：" % (
+    user_prompt = ("情况：%s\n最近聊的：\n%s\n你记得的：\n%s\n\n"
+                   "（只用上面出现过的信息；没有具体的东西就说得笼统。你现在想说的是：）") % (
         kind, recent or "（还没聊过）", mem_txt or "（没有）")
 
     buf = []
@@ -269,8 +272,6 @@ def _stage_of(user_id: str, persona: str) -> str:
         return (row["stage"] if row and row["stage"] else "A")
     except Exception:
         return "A"
-
-
 
 
 def _allowed(user_id: str) -> bool:
@@ -419,9 +420,6 @@ def decide_with_model(user_id: str, persona: str):
     return (ans.startswith("要发"), ans[:40])
 
 
-if __name__ == "__main__":
-    main()
-
 # ---------- 用户偏好 ----------
 
 def prefs_of(user_id: str) -> dict:
@@ -470,3 +468,6 @@ def _freq_ok(user_id: str, freq: int) -> bool:
         return True
     return (datetime.now() - last).days >= freq
 
+
+if __name__ == "__main__":
+    main()

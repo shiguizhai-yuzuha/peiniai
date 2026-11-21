@@ -153,6 +153,17 @@ def _ds_page():
         return HTMLResponse("<h1>页面读不到：%s</h1>" % e, status_code=500)
 
 
+def _sort_page():
+    """排序动画（启动页原型）。"""
+    from fastapi.responses import HTMLResponse
+    path = os.path.join(_ROOT, "static", "sort", "index.html")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return HTMLResponse(f.read(), headers=_NOCACHE)
+    except Exception as e:
+        return HTMLResponse("<h1>页面读不到：%s</h1>" % e, status_code=500)
+
+
 def _menu_page():
     """全部功能：一页跳转。"""
     from fastapi.responses import HTMLResponse

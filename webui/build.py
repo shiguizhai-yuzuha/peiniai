@@ -16,7 +16,7 @@ import gradio.routes as _gr_routes
 from core.ipblock import IPBlockMiddleware
 
 from webui.middleware import RootSwitch
-from webui.pages import (_ab_page, _app_page, _home_page, _keys_page, _notice_page, _ds_page,
+from webui.pages import (_ab_page, _app_page, _home_page, _keys_page, _notice_page, _ds_page, _sort_page,
                         _piano_page, _scene_act, _scene_page, _voice_page, _menu_page)
 from webui.routes import _bg_image, _keepsake_dl, _keepsake_file
 from webui.story import _story_page
@@ -75,6 +75,7 @@ def _create_app_with_ipblock(*args, **kwargs):
         _app.add_api_route("/uploads/{path:path}", _upload_file, methods=["GET"])
         _app.add_api_route("/app", _app_page, methods=["GET"])
         _app.add_api_route("/ds", _ds_page, methods=["GET"])
+        _app.add_api_route("/sort", _sort_page, methods=["GET"])
         _app.add_api_route("/home", _home_page, methods=["GET"])
         _app.add_api_route("/voice", _voice_page, methods=["GET"])
         _app.add_api_route("/menu", _menu_page, methods=["GET"])

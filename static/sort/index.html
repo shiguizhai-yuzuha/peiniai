@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>排序 · 陪你</title>
+<style>
+  :root{ --bg:#080a0e; --warm:#ffb98a; --cool:#7fd0ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;
+    font-family:-apple-system,"Microsoft YaHei",sans-serif;color:#efe9e1}
+  canvas{display:block;width:100%;height:100%}
+  #ui{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;
+      padding:10px 14px;border-radius:16px;background:rgba(16,20,26,.72);
+      border:1px solid rgba(239,233,225,.12);backdrop-filter:blur(10px);z-index:5}
+  button{cursor:pointer;border:1px solid rgba(239,233,225,.16);background:rgba(255,255,255,.05);
+    color:#efe9e1;padding:7px 12px;border-radius:10px;font-size:13px;font-family:inherit;transition:.18s}
+  button:hover{border-color:rgba(255,185,138,.5)}
+  button.on{background:linear-gradient(135deg,#ffb98a,#ff9a6a);color:#241208;border-color:transparent;font-weight:600}
+  #start{padding:7px 18px}
+  input[type=range]{width:120px;accent-color:#ffb98a}
+  .lab{font-size:12px;color:rgba(239,233,225,.5)}
+  #stats{position:fixed;left:24px;top:20px;font-size:12px;line-height:1.9;
+    color:rgba(239,233,225,.5);letter-spacing:.04em;z-index:5}
+  #title{position:fixed;right:26px;top:20px;font-size:12px;letter-spacing:.3em;
+    color:rgba(239,233,225,.35);z-index:5}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="stats"></div>
+<div id="title">陪 你 · 排 序</div>
+<div id="ui">
+  <button id="algoBubble">冒泡</button>
+  <button id="algoInsert">插入</button>
+  <button id="algoQuick" class="on">快排</button>
+  <button id="algoBucket">桶</button>
+  <span class="lab">速度</span>
+  <input type="range" id="speed" min="1" max="30" value="25">
+  <button id="start">开始</button>
+  <button id="reset">重来</button>
+</div>
+
+<script>
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const statsEl = document.getElementById("stats");
+
+let W = 0, H = 0, DPR = Math.min(devicePixelRatio || 1, 2);
+const N = 96;
+
+let data = [], target = null, phase = "idle";
+let algo = "quick", delay = 6;
+let steps = null, stepIndex = 0, raf = null;
+let comparisons = 0, swaps = 0, active = [-1, -1], t0 = 0;
+let morphT = 0, doneAlpha = 0;
+
+/* ---------- 初始化数据 ---------- */
+function shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function resetData(){
+  data = shuffle(Array.from({length: N}, (_, i) => i));
+  target = null; phase = "idle"; steps = null; stepIndex = 0;
+  comparisons = swaps = 0; active = [-1, -1]; morphT = 0;
+  statsEl.innerHTML = "";
+  draw();
+}
+
+/* ---------- 三种算法，每一步 yield ---------- */
+function* bubble(a){
+  const n = a.length;
+  for (let i = 0; i < n - 1; i++){
+    for (let j = 0; j < n - 1 - i; j++){
+      comparisons++; yield ["cmp", j, j + 1];
+      if (a[j] > a[j + 1]){ [a[j], a[j+1]] = [a[j+1], a[j]]; swaps++; yield ["swap", j, j + 1]; }
+    }
+  }
+}
+
+function* insertion(a){
+  for (let i = 1; i < a.length; i++){
+    let k = a[i], j = i - 1;
+    while (j >= 0){
+      comparisons++; yield ["cmp", j, i];
+      if (a[j] > k){ a[j+1] = a[j]; swaps++; j--; yield ["swap", j + 1, j]; }
+      else break;
+    }
+    a[j+1] = k;
+    yield ["set", j + 1, j + 1];
+  }
+}
+
+function* quick(a){
+  const st = [[0, a.length - 1]];
+  while (st.length){
+    const [lo, hi] = st.pop();
+    if (lo >= hi) continue;
+    const p = a[hi];
+    let i = lo;
+    for (let j = lo; j < hi; j++){
+      comparisons++; yield ["cmp", j, hi];
+      if (a[j] < p){
+        [a[i], a[j]] = [a[j], a[i]]; swaps++;
+        yield ["swap", i, j]; i++;
+      }
+    }
+    [a[i], a[hi]] = [a[hi], a[i]]; swaps++;
+    yield ["swap", i, hi];
+    st.push([lo, i - 1]); st.push([i + 1, hi]);
+  }
+}
+
+function* bucket(a){
+  const B = 12, mx = N + 1;
+  const bs = Array.from({length: B}, () => []);
+  for (let i = 0; i < a.length; i++){
+    const k = Math.min(B - 1, Math.floor(a[i] / (mx / B)));
+    bs[k].push(a[i]);
+    comparisons++; yield ["cmp", i, i];
+  }
+  for (const b of bs) b.sort((x, y) => x - y);
+  let idx = 0;
+  for (const b of bs){
+    for (const v of b){ a[idx] = v; swaps++; yield ["swap", idx, idx]; idx++; }
+  }
+}
+
+const ALGOS = {bubble, insert: insertion, quick, bucket};
+
+/* ---------- 尺寸 ---------- */
+function resize(){
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  draw();
+}
+addEventListener("resize", resize);
+
+/* ---------- 画 ---------- */
+function barRect(i, v){
+  const gap = 2.2;
+  const totalW = W * 0.76;
+  const left = (W - totalW) / 2;
+  const bw = Math.max(1, totalW / N - gap);
+  const x = left + i * (totalW / N);
+  const h = (v / (N - 1)) * (H * 0.62);
+  const y = H * 0.82 - h;
+  return [x, y, bw, h];
+}
+
+function draw(){
+  ctx.clearRect(0, 0, W, H);
+  if (!data || !data.length || W < 10 || H < 10){
+    ctx.fillStyle = "#080a0e";
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  // 背景渐变
+  const g = ctx.createRadialGradient(W * 0.5, H * 0.42, 0, W * 0.5, H * 0.42, Math.max(W, H) * 0.75);
+  g.addColorStop(0, "rgba(40,32,52,.55)");
+  g.addColorStop(0.55, "rgba(14,16,22,.9)");
+  g.addColorStop(1, "#07090d");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < N; i++){
+    const v = data[i];
+    const [x, y, bw, h] = barRect(i, v);
+    const t = v / (N - 1);
+    const isActive = i === active[0] || i === active[1];
+
+    const col = ctx.createLinearGradient(0, y, 0, y + h);
+    if (isActive){
+      col.addColorStop(0, "#fff6ea");
+      col.addColorStop(1, "#ffb98a");
+    } else {
+      col.addColorStop(0, `rgba(${255 - 80 * t}, ${185 + 20 * t}, ${138 + 90 * t}, .95)`);
+      col.addColorStop(1, `rgba(${120 + 60 * t}, ${150 + 60 * t}, ${220}, .55)`);
+    }
+    ctx.fillStyle = col;
+    const r = Math.max(0, Math.min(3, bw / 2));
+    ctx.beginPath();
+    ctx.roundRect(x, y, bw, Math.max(2, h), r);
+    ctx.fill();
+
+    if (isActive){
+      ctx.save();
+      ctx.shadowColor = "rgba(255,185,138,.85)";
+      ctx.shadowBlur = 14;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  if (phase === "done"){
+    const size = Math.min(W * 0.30, H * 0.52);
+    ctx.save();
+    ctx.globalAlpha = doneAlpha * 0.92;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "700 " + size + "px 'Microsoft YaHei','SimHei',sans-serif";
+    const g2 = ctx.createLinearGradient(0, H * 0.2, 0, H * 0.7);
+    g2.addColorStop(0, "#fff6ea");
+    g2.addColorStop(1, "rgba(255,185,138,.75)");
+    ctx.fillStyle = g2;
+    ctx.shadowColor = "rgba(255,185,138,.55)";
+    ctx.shadowBlur = 28;
+    ctx.fillText("陪你", W / 2, H * 0.42);
+    ctx.restore();
+  }
+
+  if (phase === "sorting" || phase === "morph"){
+    statsEl.innerHTML = "比较 " + comparisons + "<br>交换 " + swaps +
+      "<br>步数 " + stepIndex + (phase === "morph" ? "<br>正在成形" : "");
+  }
+}
+
+/* ---------- 排序驱动 ---------- */
+function start(){
+  if (phase === "sorting") return;
+  resetData();
+  const gen = ALGOS[algo](data);
+  steps = gen; phase = "sorting"; t0 = performance.now();
+  tick();
+}
+
+function tick(){
+  if (phase !== "sorting") return;
+  const budget = Math.max(1, Math.round(delay / 3));
+  for (let k = 0; k < budget; k++){
+    const r = steps.next();
+    if (r.done){ onSorted(); return; }
+    stepIndex++;
+    const [kind, i, j] = r.value;
+    active = [i, j];
+  }
+  draw();
+  raf = requestAnimationFrame(tick);
+}
+
+function onSorted(){
+  phase = "done";
+  active = [-1, -1];
+  doneAlpha = 0;
+  const startT = performance.now();
+  (function fade(){
+    doneAlpha = Math.min(1, (performance.now() - startT) / 900);
+    draw();
+    if (doneAlpha < 1) requestAnimationFrame(fade);
+  })();
+}
+
+/* ---------- 目标形状：把条形排成「陪你」 ---------- */
+function buildTarget(){
+  const off = document.createElement("canvas");
+  off.width = W; off.height = H;
+  const c = off.getContext("2d");
+  c.fillStyle = "#fff";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  const size = Math.min(W * 0.30, H * 0.68);
+  c.font = "700 " + size + "px 'Microsoft YaHei','SimHei','SimSun',sans-serif";
+  c.fillText("陪你", W / 2, H * 0.46);
+
+  const img = c.getImageData(0, 0, W, H).data;
+  const t = new Array(N).fill(1);
+  const totalW = W * 0.76;
+  const left = (W - totalW) / 2;
+  const unit = totalW / N;
+  const baseY = H * 0.82;
+
+  for (let i = 0; i < N; i++){
+    const x = Math.floor(left + i * unit + unit / 2);
+    let top = null;
+    for (let y = 0; y < H; y += 2){
+      if (img[(y * W + x) * 4 + 3] > 120){ top = y; break; }
+    }
+    if (top == null){ t[i] = 1; continue; }
+    const h = baseY - top;
+    t[i] = Math.max(1, Math.min(N - 1, h / (H * 0.62) * (N - 1)));
+  }
+  // 抹平孤点
+  for (let i = 1; i < N - 1; i++){
+    if (t[i] < 4 && t[i-1] > 30 && t[i+1] > 30) t[i] = Math.min(t[i-1], t[i+1]);
+  }
+  target = t;
+}
+
+/* ---------- UI ---------- */
+const btns = {
+  algoBubble: "bubble", algoInsert: "insert", algoQuick: "quick", algoBucket: "bucket"
+};
+Object.keys(btns).forEach(id => {
+  document.getElementById(id).addEventListener("click", () => {
+    algo = btns[id];
+    Object.keys(btns).forEach(k => document.getElementById(k).classList.remove("on"));
+    document.getElementById(id).classList.add("on");
+    resetData();
+  });
+});
+document.getElementById("speed").addEventListener("input", e => {
+  delay = 31 - Number(e.target.value);
+});
+document.getElementById("start").addEventListener("click", start);
+document.getElementById("reset").addEventListener("click", resetData);
+addEventListener("keydown", e => { if (e.code === "Space"){ e.preventDefault(); start(); } });
+
+window.__finish = function(){
+  if (steps){
+    let r;
+    do { r = steps.next(); } while (!r.done);
+  }
+  onSorted();
+};
+
+resize();
+resetData();
+start();
+</script>
+</body>
+</html>

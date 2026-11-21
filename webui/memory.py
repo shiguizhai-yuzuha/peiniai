@@ -208,6 +208,32 @@ def do_pin(user_id, target, text):
     return ("✅ 记住了，这条不会被忘掉", *_mem_refresh(user_id))
 
 
+def do_set_mode(user_id, mode, persona=""):
+    """切换关系模式：恋爱 / 陪伴。"""
+    try:
+        from core import mode as mode_mod
+        m = "companion" if str(mode).lower() in ("companion", "陪伴") else "romance"
+        mode_mod.set_mode(user_id, m, persona or "")
+        try:
+            from db import repository as repo
+            repo.add_milestone(user_id, "*", "mode_" + m, "关系改成" + ("陪伴" if m == "companion" else "恋爱"))
+        except Exception:
+            pass
+        if m == "companion":
+            return "已切换：陪伴。她记得你，只是不再用恋人的方式说话。"
+        return "已切换：恋爱。关系从今天重新开始推进。"
+    except Exception as e:
+        return "切换失败：%s" % e
+
+
+def get_mode_label(user_id, persona=""):
+    try:
+        from core import mode as mode_mod
+        return "陪伴" if mode_mod.get_mode(user_id, persona or "") == "companion" else "恋爱"
+    except Exception:
+        return "恋爱"
+
+
 def open_profile(user_id, persona=None):
     persona = persona or DEFAULT_PERSONA
     style = repo.get_user_pref(user_id, "reply_style", "normal") if user_id else "normal"

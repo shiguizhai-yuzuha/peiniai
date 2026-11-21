@@ -35,14 +35,27 @@ from webui.render import render_relationship
 def load_history(user_id, persona):
     if not user_id:
         return []
-    history = repo.get_recent_messages(user_id, persona, limit=20)
+    history = repo.get_recent_messages_full(user_id, persona, limit=20)
     result = []
     for m in history:
         if m["role"] == "assistant":
-            for chunk in split_chunks(m["content"], max_chunks=20, merge=False):
-                result.append({"role": "assistant", "content": chunk})
+            chunks = split_chunks(m["content"], max_chunks=20, merge=False)
+            for i, chunk in enumerate(chunks):
+                result.append({"role": "assistant", "content": chunk,
+                               "id": m["id"], "part": i, "parts": len(chunks),
+                               "reply_to": m.get("reply_to"),
+                               "recalled_at": m.get("recalled_at"),
+                               "recalled_by": m.get("recalled_by"),
+                               "created_at": m.get("created_at"),
+                           "attachments": m.get("attachments")})
         else:
-            result.append({"role": m["role"], "content": m["content"]})
+            result.append({"role": m["role"], "content": m["content"],
+                           "id": m["id"], "part": 0, "parts": 1,
+                           "reply_to": m.get("reply_to"),
+                           "recalled_at": m.get("recalled_at"),
+                           "recalled_by": m.get("recalled_by"),
+                           "created_at": m.get("created_at"),
+                           "attachments": m.get("attachments")})
     return result
 
 
@@ -58,7 +71,7 @@ def opening_history(persona):
     return [{"role": "assistant", "content": random.choice(lines)}]
 
 
-def respond(message, chat_history, user_id, session_id, persona, guest_token=None):
+def respond(message, chat_history, user_id, session_id, persona, guest_token=None, attachments=None):
     # 游客：只有"没有 user_id 但有凭证"才走免登录。
     # 这样登录之后即使 guest_token 还留着，也不会串到游客路径。
     if guest_token and not user_id:
@@ -124,7 +137,7 @@ def respond(message, chat_history, user_id, session_id, persona, guest_token=Non
 
     try:
         got_any = False
-        for chunk, err in handle_message(user_id, session_id, msgs, persona):
+        for chunk, err in handle_message(user_id, session_id, msgs, persona, attachments=attachments):
             got_any = True
             content = chunk or err
             typing = ""          # 第一条真回复来了，状态条收掉

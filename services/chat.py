@@ -57,6 +57,17 @@ AI_CONFESS_PROMPT = """
 _PLAIN_ON = [True]
 
 
+_LAST_RECALL = {"user_id": "", "ids": []}
+
+def pop_last_recall(user_id: str):
+    """取出（并清空）这个人最近一次"她撤回"的 id。"""
+    if _LAST_RECALL.get("user_id") == user_id and _LAST_RECALL.get("ids"):
+        ids = list(_LAST_RECALL["ids"])
+        _LAST_RECALL["ids"] = []
+        return ids
+    return []
+
+
 def clean_output(text: str) -> str:
     # 模型有时会写成 <msg>…</msg>（带闭合标签）。分隔符 <msg> 要留着给
     # split_chunks 用，只清掉闭合的 </msg>，否则它会原样显示在聊天里。
@@ -155,7 +166,7 @@ def _days_since(ts) -> int:
         return 0
 
 
-def handle_message(user_id: str, session_id: str, message, persona: str):
+def handle_message(user_id: str, session_id: str, message, persona: str, reply_to=None, attachments=None):
     """message 可以是字符串，也可以是列表（同一轮连发的几条）。
 
     多条时：每条单独入库（刷新后仍是一个个独立气泡），
@@ -205,8 +216,11 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
     # 先取"上一次和这个角色说话"的时间，再存本条（否则会取到刚存的这条）
     last_active_at = repo.get_last_active_by_persona(user_id, persona)
 
-    for m in msgs:
-        repo.save_message(session_id, user_id, persona, "user", m)
+    for _i, m in enumerate(msgs):
+        # 只有第一条带上引用关系
+        repo.save_message(session_id, user_id, persona, "user", m,
+                          reply_to=(reply_to if _i == 0 else None),
+                          attachments=(attachments if _i == 0 else None))
 
     char = repo.get_character_state(user_id, persona)
     prev_emotion = char.get("emotion_score", 0) or 0
@@ -215,7 +229,7 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
     time_ctx = time_context.get_time_context(last_active_at)
 
     days_since = _days_since(last_active_at)
-    in_companion = mode_mod.is_companion(user_id)
+    in_companion = mode_mod.is_companion(user_id, persona)
 
     # 陪伴模式：不涨好感度，也不记增长曲线。其余（情绪、活跃时间）照旧。
     if not in_companion:
@@ -287,6 +301,61 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
         messages.append({"role": "system", "content": guard.XIAO_NUAN_PROMPT})
         repo.add_milestone(user_id, persona, "hidden:xiaonuan", "——")
 
+    # ===== 图片：把最后一条用户消息变成块数组 =====
+    _use_vision = bool(attachments)
+    if _use_vision:
+        try:
+            import base64 as _b64, os as _os, mimetypes as _mt
+            _root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+            blocks = [{"type": "text", "text": combined or "（我发了一张图）"}]
+            for _u2 in attachments[:4]:
+                if _u2.startswith("/uploads/"):
+                    _p = _os.path.join(_root, "static", _u2.lstrip("/"))
+                elif _u2.startswith("/"):
+                    _p = _os.path.join(_root, _u2.lstrip("/"))
+                else:
+                    _p = _u2
+                if not _os.path.isfile(_p):
+                    print(f"[图片] 找不到文件：{_p}", flush=True)
+                    continue
+                _mime = _mt.guess_type(_p)[0] or "image/jpeg"
+                with open(_p, "rb") as _f:
+                    _b = _b64.b64encode(_f.read()).decode()
+                blocks.append({"type": "image_url",
+                               "image_url": {"url": "data:%s;base64,%s" % (_mime, _b)}})
+            for _i3 in range(len(messages) - 1, -1, -1):
+                if messages[_i3].get("role") == "user":
+                    messages[_i3] = {"role": "user", "content": blocks}
+                    break
+            print(f"[图片] 本轮带 {len(blocks)-1} 张图", flush=True)
+        except Exception as _e:
+            print(f"[图片] 处理失败，退回纯文本：{_e}", flush=True)
+            _use_vision = False
+
+    # ===== 撤回感知：他刚收回了什么 =====
+    if not in_companion:
+        try:
+            _rc = repo.get_last_recall(user_id, persona, within_seconds=900)
+        except Exception:
+            _rc = None
+    else:
+        try:
+            _rc = repo.get_last_recall(user_id, persona, within_seconds=900)
+        except Exception:
+            _rc = None
+    if _rc and _rc.get("recalled_by") == "user":
+        _txt = (_rc.get("content") or "").strip()
+        if len(_txt) > 80:
+            _txt = _txt[:80] + "…"
+        messages.append({"role": "system", "content":
+            "[系统] 他刚才发了一条消息，又撤回了。内容是：「" + _txt + "」。"
+            "他没有解释。你可以装作没看见，也可以在意一下，"
+            "但不要一字不差地复述原文，也不要问他“为什么撤回”逼他解释。"})
+
+    messages.append({"role": "system", "content":
+        "[系统] 如果你觉得自己刚说的那句话不该说，可以只回一个 [[RECALL]]，"
+        "表示收回上一条。收回之后可以再说一句别的。"})
+
     if action in ("steer", "care"):
         messages.append({"role": "system", "content": payload})
     if extra_prompt:
@@ -330,7 +399,9 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
                 temperature=_temp,
                 max_tokens=_cap,
                 frequency_penalty=_freq,
-                presence_penalty=_pres):
+                presence_penalty=_pres,
+                model=("deepseek-flash" if _use_vision else None),
+                extra_body=({"thinking": {"type": "disabled"}} if _use_vision else None)):
             if u:
                 usage = u
             if not delta_text:
@@ -400,10 +471,41 @@ def handle_message(user_id: str, session_id: str, message, persona: str):
         yield tail, ""
 
     partial = clean_output(partial)
+
+    # 她自己撤回：只回一个 [[RECALL]] 就收回上一条
+    _self_recall = "[[RECALL]]" in partial
+    if _self_recall:
+        partial = partial.replace("[[RECALL]]", "").strip()
+        print("[撤回] 她要求收回上一条", flush=True)
     print(f"[原始回复] {repr(partial)}", flush=True)
 
     completion_tokens = usage.completion_tokens if usage else 0
+    _prev_aid = None
+    if _self_recall:
+        try:
+            _prev_aid = repo.get_last_assistant_id(user_id, persona)
+        except Exception:
+            _prev_aid = None
+
     repo.save_message(session_id, user_id, persona, "assistant", partial, completion_tokens)
+
+    if _self_recall and _prev_aid:
+        try:
+            repo.recall_message(_prev_aid, user_id, "ai")
+            _LAST_RECALL["user_id"] = user_id
+            _LAST_RECALL["ids"].append(_prev_aid)
+            print(f"[撤回] 已收回 assistant#{_prev_aid}", flush=True)
+        except Exception as _e:
+            print(f"[撤回] 失败：{_e}", flush=True)
+
+    # 图片：每张额外扣费（不走 token）
+    if attachments:
+        try:
+            _n = len(attachments)
+            _fee = billing.charge_image(user_id, _n)
+            print(f"[计费] {_n} 张图，扣 {_fee:.2f} 元", flush=True)
+        except Exception as _e:
+            print(f"[计费] 图片扣费失败：{_e}", flush=True)
 
     if usage:
         # 未成年不扣钱，只记 token 统计

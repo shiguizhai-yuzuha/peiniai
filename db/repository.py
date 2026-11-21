@@ -207,12 +207,15 @@ def create_invite_code(code: str, max_uses: int = 1):
 
 
 # ---------- 消息 ----------
-def save_message(session_id, user_id, persona, role, content, tokens=0):
+def save_message(session_id, user_id, persona, role, content, tokens=0, reply_to=None,
+                 attachments=None):
+    import json as _json
+    _att = _json.dumps(attachments, ensure_ascii=False) if attachments else None
     conn = get_conn()
     cur = conn.execute(
-        "INSERT INTO messages(session_id, user_id, persona, role, content, tokens) "
-        "VALUES(?,?,?,?,?,?)",
-        (session_id, user_id, persona, role, content, tokens),
+        "INSERT INTO messages(session_id, user_id, persona, role, content, tokens, reply_to, attachments) "
+        "VALUES(?,?,?,?,?,?,?,?)",
+        (session_id, user_id, persona, role, content, tokens, reply_to, _att),
     )
     mid = cur.lastrowid
     conn.commit()
@@ -620,7 +623,8 @@ def list_all_memories(user_id: str, limit: int = 300):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT persona, key, value, priority, COALESCE(pinned,0) AS pinned "
+        "SELECT persona, key, value, priority, COALESCE(pinned,0) AS pinned, "
+        "       COALESCE(updated_at,'') AS updated_at "
         "FROM memories WHERE user_id=? "
         "ORDER BY COALESCE(pinned,0) DESC, persona, priority DESC, updated_at DESC "
         "LIMIT ?",
@@ -1169,5 +1173,110 @@ def delete_story(sid: str, user_id: str):
     row = conn.execute("SELECT file FROM stories WHERE id=? AND user_id=?", (sid, user_id)).fetchone()
     conn.execute("DELETE FROM stories WHERE id=? AND user_id=?", (sid, user_id))
     conn.commit()
+    conn.close()
+    return row[0] if row else None
+
+# ================= 消息：软删除 / 引用 =================
+
+def soft_delete_message(message_id, user_id: str) -> bool:
+    """软删除：只标记，不真删。只能删自己的。"""
+    conn = get_conn()
+    cur = conn.execute(
+        "UPDATE messages SET deleted_at=CURRENT_TIMESTAMP "
+        "WHERE id=? AND user_id=? AND deleted_at IS NULL",
+        (message_id, user_id),
+    )
+    conn.commit()
+    ok = cur.rowcount > 0
+    conn.close()
+    return ok
+
+
+def restore_message(message_id, user_id: str) -> bool:
+    conn = get_conn()
+    cur = conn.execute(
+        "UPDATE messages SET deleted_at=NULL WHERE id=? AND user_id=?",
+        (message_id, user_id),
+    )
+    conn.commit()
+    ok = cur.rowcount > 0
+    conn.close()
+    return ok
+
+
+def get_message(message_id, user_id: str):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id, role, content, reply_to FROM messages WHERE id=? AND user_id=?",
+        (message_id, user_id),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_recent_messages_full(user_id: str, persona: str, limit: int = 20):
+    """带 id / reply_to 的历史，跳过已删除的。"""
+    conn = get_conn()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT id, role, content, reply_to, recalled_at, recalled_by, created_at, attachments "
+        "FROM messages "
+        "WHERE user_id=? AND persona=? AND deleted_at IS NULL "
+        "ORDER BY id DESC LIMIT ?",
+        (user_id, persona, limit),
+    ).fetchall()
+    conn.close()
+    out = []
+    for r in reversed(rows):
+        out.append({"id": r["id"], "role": r["role"], "content": r["content"],
+                    "reply_to": r["reply_to"],
+                    "recalled_at": r["recalled_at"], "recalled_by": r["recalled_by"],
+                    "created_at": r["created_at"], "attachments": r["attachments"]})
+    return out
+
+# ================= 消息：撤回 =================
+
+def recall_message(message_id, user_id: str, by: str = "user") -> bool:
+    """撤回：留痕但保留原文。只能撤自己的（AI 的用 by='ai' 单独走）。"""
+    conn = get_conn()
+    if by == "user":
+        cur = conn.execute(
+            "UPDATE messages SET recalled_at=CURRENT_TIMESTAMP, recalled_by='user' "
+            "WHERE id=? AND user_id=? AND role='user' AND recalled_at IS NULL",
+            (message_id, user_id),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE messages SET recalled_at=CURRENT_TIMESTAMP, recalled_by='ai' "
+            "WHERE id=? AND user_id=? AND role='assistant' AND recalled_at IS NULL",
+            (message_id, user_id),
+        )
+    conn.commit()
+    ok = cur.rowcount > 0
+    conn.close()
+    return ok
+
+
+def get_last_recall(user_id: str, persona: str, within_seconds: int = 900):
+    """最近一次撤回（给 prompt 注入用）。"""
+    conn = get_conn()
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT id, role, content, recalled_by, recalled_at FROM messages "
+        "WHERE user_id=? AND persona=? AND recalled_at IS NOT NULL "
+        "AND (strftime('%s','now') - strftime('%s', recalled_at)) <= ? "
+        "ORDER BY recalled_at DESC LIMIT 1",
+        (user_id, persona, within_seconds),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_last_assistant_id(user_id: str, persona: str):
+    """最后一条她说的（用于她自己撤回）。"""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id FROM messages WHERE user_id=? AND persona=? AND role='assistant' "
+        "AND recalled_at IS NULL ORDER BY id DESC LIMIT 1",
+        (user_id, persona),
+    ).fetchone()
     conn.close()
     return row[0] if row else None

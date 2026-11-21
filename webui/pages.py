@@ -142,6 +142,17 @@ def _app_page():
         return HTMLResponse("<h1>前端文件读不到：%s</h1>" % e, status_code=500)
 
 
+def _ds_page():
+    """直连 DeepSeek 的应急入口（独立于陪伴聊天）。"""
+    from fastapi.responses import HTMLResponse
+    path = os.path.join(_ROOT, "static", "app", "ds.html")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return HTMLResponse(f.read(), headers=_NOCACHE)
+    except Exception as e:
+        return HTMLResponse("<h1>页面读不到：%s</h1>" % e, status_code=500)
+
+
 def _menu_page():
     """全部功能：一页跳转。"""
     from fastapi.responses import HTMLResponse

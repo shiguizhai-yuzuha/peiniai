@@ -183,7 +183,7 @@ def apply(user_id, persona, etype, intensity=1, summary=""):
         # 陪伴模式不涨好感度（事件带来的信任/情绪照旧）
         try:
             from core import mode as _mode
-            _companion = _mode.is_companion(user_id)
+            _companion = _mode.is_companion(user_id, persona)
         except Exception:
             _companion = False
 

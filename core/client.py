@@ -11,7 +11,8 @@ client = OpenAI(
 
 
 def stream_chat(messages, temperature=None, max_tokens=None,
-                frequency_penalty=None, presence_penalty=None):
+                frequency_penalty=None, presence_penalty=None, model=None,
+                extra_body=None):
     """流式对话，yield (文本片段, usage)
 
     四个参数都可以不传——不传就用 config 里的值。
@@ -23,7 +24,7 @@ def stream_chat(messages, temperature=None, max_tokens=None,
     _p = PRESENCE_PENALTY if presence_penalty is None else presence_penalty
 
     stream = client.chat.completions.create(
-        model=MODEL,
+        model=model or MODEL,
         messages=messages,
         stream=True,
         temperature=_t,
@@ -32,6 +33,7 @@ def stream_chat(messages, temperature=None, max_tokens=None,
         presence_penalty=_p or None,
         frequency_penalty=_f or None,
         stream_options={"include_usage": True},
+        **({"extra_body": extra_body} if extra_body else {}),
     )
     for chunk in stream:
         # 先检查 usage，无论 choices 是否为空

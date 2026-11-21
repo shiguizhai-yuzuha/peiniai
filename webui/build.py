@@ -16,7 +16,7 @@ import gradio.routes as _gr_routes
 from core.ipblock import IPBlockMiddleware
 
 from webui.middleware import RootSwitch
-from webui.pages import (_ab_page, _app_page, _home_page, _keys_page, _notice_page,
+from webui.pages import (_ab_page, _app_page, _home_page, _keys_page, _notice_page, _ds_page,
                         _piano_page, _scene_act, _scene_page, _voice_page, _menu_page)
 from webui.routes import _bg_image, _keepsake_dl, _keepsake_file
 from webui.story import _story_page
@@ -34,7 +34,32 @@ def _create_app_with_ipblock(*args, **kwargs):
         _app.add_api_route("/keepsake/dl/{name}", _keepsake_dl, methods=["GET"])
         _app.add_api_route("/keepsake/{name}", _keepsake_file, methods=["GET"])
         _app.add_api_route("/scene/{key}", _scene_page, methods=["GET"])
+        def _app_asset(name: str):
+            from fastapi.responses import FileResponse, JSONResponse
+            import os as _os
+            base = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                 "static", "app")
+            path = _os.path.join(base, _os.path.basename(name))
+            if not _os.path.isfile(path):
+                return JSONResponse({"ok": False, "error": "not found"}, status_code=404)
+            mt = "application/javascript" if path.endswith(".js") else None
+            return FileResponse(path, media_type=mt,
+                                headers={"Cache-Control": "no-cache"})
+
+        _app.add_api_route("/app/{name}", _app_asset, methods=["GET"])
+        def _upload_file(path: str):
+            from fastapi.responses import FileResponse, JSONResponse
+            import os as _os
+            base = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                 "static", "uploads")
+            full = _os.path.normpath(_os.path.join(base, path))
+            if not full.startswith(_os.path.normpath(base)) or not _os.path.isfile(full):
+                return JSONResponse({"ok": False}, status_code=404)
+            return FileResponse(full, headers={"Cache-Control": "public, max-age=86400"})
+
+        _app.add_api_route("/uploads/{path:path}", _upload_file, methods=["GET"])
         _app.add_api_route("/app", _app_page, methods=["GET"])
+        _app.add_api_route("/ds", _ds_page, methods=["GET"])
         _app.add_api_route("/home", _home_page, methods=["GET"])
         _app.add_api_route("/voice", _voice_page, methods=["GET"])
         _app.add_api_route("/menu", _menu_page, methods=["GET"])

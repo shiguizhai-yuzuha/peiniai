@@ -135,8 +135,10 @@ def register(app):
 
         try:
             import app as _A
+            imgs = d.get("images") or []
             last = None
-            for out in _A.respond(message, history, user_id, session_id, persona, None):
+            for out in _A.respond(message, history, user_id, session_id, persona, None,
+                                  attachments=imgs):
                 last = out
             if last is None:
                 return {"ok": False, "error": "没有回复"}
@@ -161,8 +163,15 @@ def register(app):
             if len(new_segs) > 4:
                 new_segs = new_segs[-4:]
 
+            try:
+                from services import chat as _chat_mod
+                _recalled = _chat_mod.pop_last_recall(user_id)
+            except Exception:
+                _recalled = []
+
             return {
                 "ok": True,
+                "recalled_ids": _recalled,
                 "segs": new_segs,
                 "history": chatbot,
                 "session_id": session_id,
@@ -173,11 +182,245 @@ def register(app):
             import traceback; traceback.print_exc()
             return {"ok": False, "error": str(e)}
 
+    # ===== 消息：软删除 / 恢复 / 引用 =====
+    @app.post("/api/msg/delete")
+    async def _msg_delete(request: Request):
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            mid = d.get("id")
+            if not u or not mid:
+                return {"ok": False, "error": "参数不对"}
+            ok = repo.soft_delete_message(mid, u)
+            return {"ok": bool(ok)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.post("/api/msg/restore")
+    async def _msg_restore(request: Request):
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            mid = d.get("id")
+            if not u or not mid:
+                return {"ok": False, "error": "参数不对"}
+            ok = repo.restore_message(mid, u)
+            return {"ok": bool(ok)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.post("/api/upload")
+    async def _upload(request: Request):
+        """收一张图：base64 JSON → static/uploads/<uid>/<uuid>.<ext>"""
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            b64 = d.get("data") or ""
+            if not u or not b64:
+                return {"ok": False, "error": "参数不对"}
+            if "," in b64[:80]:
+                b64 = b64.split(",", 1)[1]
+            import base64 as _b64, uuid as _uuid, os as _os
+            raw = _b64.b64decode(b64)
+            if len(raw) > 6 * 1024 * 1024:
+                return {"ok": False, "error": "图太大了（上限 6 MB）"}
+            ext = "jpg"
+            if raw[:8] == b"\x89PNG\r\n\x1a\n":
+                ext = "png"
+            elif raw[:6] in (b"GIF87a", b"GIF89a"):
+                ext = "gif"
+            elif raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+                ext = "webp"
+            base = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                                 "static", "uploads", u[:36])
+            _os.makedirs(base, exist_ok=True)
+            name = "%s.%s" % (_uuid.uuid4().hex, ext)
+            with open(_os.path.join(base, name), "wb") as f:
+                f.write(raw)
+            return {"ok": True, "url": "/uploads/%s/%s" % (u[:36], name)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.post("/api/msg/recall")
+    async def _msg_recall(request: Request):
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            mid = d.get("id")
+            by = (d.get("by") or "user").strip()
+            if not u or not mid:
+                return {"ok": False, "error": "参数不对"}
+            from db import repository as _r
+            ok = _r.recall_message(mid, u, by)
+            # 让她"记住这件事"，但只记事件不记原文
+            if ok and by == "user":
+                try:
+                    _r.upsert_memory(u, (d.get("p") or ""), "moment:他撤回了一句话",
+                                     "他说了一句又收回去了，没解释", 3)
+                except Exception:
+                    pass
+            return {"ok": bool(ok)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.get("/api/msg/deleted")
+    def _msg_deleted(u: str = "", limit: int = 50):
+        """最近删除的消息，用于找回。"""
+        try:
+            if not u:
+                return {"ok": False, "items": []}
+            conn = repo.get_conn()
+            conn.row_factory = None
+            rows = conn.execute(
+                "SELECT id, role, persona, content, deleted_at FROM messages "
+                "WHERE user_id=? AND deleted_at IS NOT NULL "
+                "ORDER BY deleted_at DESC LIMIT ?",
+                (u, limit),
+            ).fetchall()
+            conn.close()
+            items = [{"id": r[0], "role": r[1], "persona": r[2],
+                      "content": (r[3] or "")[:200], "deleted_at": r[4]} for r in rows]
+            return {"ok": True, "items": items}
+        except Exception as e:
+            return {"ok": False, "items": [], "error": str(e)}
+
+    @app.post("/api/msg/quote")
+    async def _msg_quote(request: Request):
+        """给「刚刚发出去那条」打上引用标记。"""
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            p = (d.get("p") or "").strip()
+            rid = d.get("reply_to")
+            if not u or not rid:
+                return {"ok": False, "error": "参数不对"}
+            conn = repo.get_conn()
+            cur = conn.execute(
+                "UPDATE messages SET reply_to=? WHERE id=("
+                " SELECT id FROM messages WHERE user_id=? AND persona=? AND role='user'"
+                " AND deleted_at IS NULL ORDER BY id DESC LIMIT 1)",
+                (rid, u, p),
+            )
+            conn.commit()
+            n = cur.rowcount
+            conn.close()
+            return {"ok": n > 0}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    # ===== DeepSeek 应急入口（不是她，是通用助手） =====
+    _DS_WHITELIST = {"XIAO2026"}
+    _ds_hits = {}
+
+    def _ds_allowed(user_id: str) -> bool:
+        """只有管理员 / 白名单能用，防止别人白烧 key。"""
+        if not user_id:
+            return False
+        try:
+            conn = repo.get_conn()
+            conn.row_factory = None
+            row = conn.execute(
+                "SELECT username, COALESCE(role,'') FROM users WHERE user_id=?",
+                (user_id,),
+            ).fetchone()
+            conn.close()
+            if not row:
+                return False
+            username, role = row[0] or "", (row[1] or "").lower()
+            return role in ("admin", "owner") or username in _DS_WHITELIST
+        except Exception:
+            return False
+
+    def _ds_rate_ok(user_id: str) -> bool:
+        """每人每分钟最多 12 次。"""
+        import time as _t
+        now = _t.time()
+        arr = [x for x in _ds_hits.get(user_id, []) if now - x < 60]
+        if len(arr) >= 12:
+            _ds_hits[user_id] = arr
+            return False
+        arr.append(now)
+        _ds_hits[user_id] = arr
+        return True
+
+    @app.post("/api/ds")
+    async def _ds(request: Request):
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            msgs = d.get("messages") or []
+            if not msgs:
+                return {"ok": False, "error": "空消息"}
+            if not _ds_allowed(u):
+                return {"ok": False, "error": "这个入口只对管理员开放"}
+            if not _ds_rate_ok(u):
+                return {"ok": False, "error": "太快了，等一分钟"}
+
+            from core import client as _cli
+            buf = []
+            for delta, _u in _cli.stream_chat(msgs, temperature=0.7, max_tokens=2000):
+                if delta:
+                    buf.append(delta)
+            return {"ok": True, "text": "".join(buf)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.get("/api/memories")
+    def _memories(u: str = "", p: str = "", limit: int = 200):
+        """给星图用：这个人的记忆点。"""
+        try:
+            if not u:
+                return {"ok": False, "items": []}
+            items = repo.list_all_memories(u, limit=limit)
+            out = []
+            for m in items or []:
+                out.append({
+                    "key": m.get("key") or "",
+                    "value": (m.get("value") or "")[:160],
+                    "persona": m.get("persona") or "",
+                    "priority": m.get("priority") or 1,
+                    "ts": str(m.get("updated_at") or ""),
+                    "pinned": bool(m.get("pinned")),
+                })
+            return {"ok": True, "items": out}
+        except Exception as e:
+            return {"ok": False, "items": [], "error": str(e)}
+
     @app.get("/api/state")
     def _state(u: str = "", p: str = ""):
         if not u or not p:
             return {"ok": False}
         return {"ok": True, "ring": _ring_json(u, p)}
+
+    # ===== 模式：陪伴 / 恋爱 =====
+    @app.get("/api/mode")
+    def _get_mode(u: str = "", p: str = ""):
+        try:
+            from core import mode as mode_mod
+            m = mode_mod.get_mode(u, p)
+            return {"ok": True, "mode": m}
+        except Exception as e:
+            return {"ok": False, "mode": "romance", "error": str(e)}
+
+    @app.post("/api/mode")
+    async def _set_mode(request: Request):
+        try:
+            body = await request.json()
+            u = (body.get("u") or "").strip()
+            pn = (body.get("p") or "").strip()
+            m = (body.get("mode") or "").strip().lower()
+            if not u or m not in ("companion", "romance"):
+                return {"ok": False, "error": "参数不对"}
+            from core import mode as mode_mod
+            mode_mod.set_mode(u, m, pn)
+            # 切换是"关系变更"，写一条里程碑，界面可以据此显示一次对话
+            try:
+                repo.add_milestone(u, "*", "mode_" + m, "关系改成" + ("陪伴" if m == "companion" else "恋爱"))
+            except Exception:
+                pass
+            return {"ok": True, "mode": mode_mod.get_mode(u, pn)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     @app.get("/api/notice")
     def _notice():

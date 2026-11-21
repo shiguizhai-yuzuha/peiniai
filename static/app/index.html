@@ -494,6 +494,193 @@ body{
 @media (prefers-reduced-motion:reduce){
   *{animation:none !important; transition:none !important}
 }
+
+/* 设置面板里的分段按钮 */
+#set .tab{flex:1; padding:9px 10px; border-radius:10px; cursor:pointer;
+  background:rgba(255,255,255,.04); border:1px solid rgba(239,233,225,.16);
+  color:rgba(239,233,225,.72); font-size:13.5px; font-family:inherit}
+#set .tab:hover{color:#efe9e1; border-color:rgba(239,233,225,.32)}
+#set .tab.on{color:#241208; border-color:transparent;
+  background:linear-gradient(135deg,#ffb98a,#ff9a6a)}
+
+
+/* ===== 动效包 v1 ===== */
+@keyframes bubIn{from{opacity:0; transform:translateY(22px) scale(.97)}to{opacity:1; transform:none}}
+@keyframes cardIn{from{opacity:0; transform:translateY(16px)}to{opacity:1; transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes breath{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes hitPulse{0%{box-shadow:0 0 0 0 rgba(255,185,138,.55)}100%{box-shadow:0 0 0 12px rgba(255,185,138,0)}}
+@keyframes veilIn{from{opacity:0}to{opacity:1}}
+
+.bub{animation:bubIn .38s cubic-bezier(.18,.9,.22,1) backwards}
+.bub.me{animation-name:bubIn}
+.bub.sys{animation:fadeIn .3s ease both}
+
+/* 首屏卡片 */
+.sbox, #notice .nbox, .lcard{animation:cardIn .42s cubic-bezier(.2,.8,.2,1) both}
+#set .sbox{animation-duration:.3s}
+
+/* 加载层：logo 呼吸 + 进度点 */
+#loader .lt{animation:breath 2.2s ease-in-out infinite}
+#loader.on{animation:veilIn .25s ease both}
+
+/* 思考点 */
+.typing i{animation:breath 1.1s ease-in-out infinite}
+
+/* 关系条：数值变化时平滑 */
+.rbar .bf{transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.rfill{transition:stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1)}
+
+/* 切换模式的全屏遮罩 */
+#modeveil{position:fixed; inset:0; background:rgba(8,10,14,.55); backdrop-filter:blur(2px);
+  display:none; z-index:90; animation:veilIn .25s ease both}
+#modeveil.on{display:block}
+
+/* 复制/按钮的小反馈 */
+.pulse{animation:hitPulse .5s ease-out}
+
+
+/* ===== 动效包 v2：全部 ===== */
+@keyframes flashIn{0%{background-color:rgba(255,185,138,.22)}100%{background-color:transparent}}
+@keyframes lineSweep{0%{transform:scaleX(0); opacity:.9}100%{transform:scaleX(1); opacity:0}}
+@keyframes floatUp{from{opacity:0; transform:translateY(24px)}to{opacity:1; transform:none}}
+
+/* 悬停抬升 */
+.bub{transition:transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease}
+.bub:hover{transform:translateY(-4px) scale(1.006) !important; box-shadow:0 8px 22px rgba(0,0,0,.18)}
+
+/* 平滑滚动 */
+#stream{scroll-behavior:smooth}
+
+/* 新消息：上浮 + 描边闪一下（不改底色） */
+@keyframes ringFlash{0%{box-shadow:0 0 0 0 rgba(255,185,138,.5)}100%{box-shadow:0 0 0 8px rgba(255,185,138,0)}}
+.bub.fresh{animation:bubIn .38s cubic-bezier(.18,.9,.22,1) backwards, ringFlash 1.2s ease-out .05s backwards}
+
+/* 长消息折叠 */
+.bub.clip{max-height:280px; overflow:hidden; position:relative; cursor:pointer}
+.bub.clip::after{content:"展开"; position:absolute; left:0; right:0; bottom:0; height:56px;
+  display:flex; align-items:flex-end; justify-content:center; padding-bottom:6px;
+  font-size:11.5px; letter-spacing:.2em; color:rgba(255,255,255,.75);
+  background:linear-gradient(180deg, transparent, rgba(0,0,0,.45))}
+
+/* 首屏光晕（放在最底层，不盖内容） */
+body::before{content:""; position:fixed; inset:0 0 auto 0; height:46vh; pointer-events:none;
+  background:radial-gradient(55% 55% at 50% -8%, rgba(255,185,138,.13), transparent 72%);
+  z-index:-1}
+
+/* 粒子层 */
+#dust{position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.55}
+
+/* 切换时的那道竖线 */
+#modeveil::after{content:""; position:absolute; left:0; top:0; height:100%; width:2px;
+  background:linear-gradient(180deg, transparent, #ffb98a, transparent);
+  transform-origin:left center; animation:lineSweep .55s ease-out both}
+
+/* 背景视差用的过渡 */
+#bg{transition:transform .35s ease-out; will-change:transform}
+
+
+/* ===== 动效包 v3 ===== */
+@keyframes logoBreath{0%,100%{transform:scale(1); opacity:.55}50%{transform:scale(1.04); opacity:1}}
+@keyframes sweep{0%{transform:translateX(-120%) skewX(-12deg); opacity:0}
+  20%{opacity:.45}100%{transform:translateX(120%) skewX(-12deg); opacity:0}}
+@keyframes cursorBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes bgDrift{0%{transform:scale(1.04) translate3d(0,0,0)}
+  50%{transform:scale(1.08) translate3d(-6px,-4px,0)}
+  100%{transform:scale(1.04) translate3d(0,0,0)}}
+@keyframes borderBreath{0%,100%{box-shadow:0 0 0 1px rgba(255,185,138,.10)}
+  50%{box-shadow:0 0 0 2px rgba(255,185,138,.34)}}
+@keyframes avatarFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes ghostText{0%{opacity:0; transform:translateY(6px)}100%{opacity:1; transform:none}}
+
+/* 入场光带 */
+#loader::after{content:""; position:absolute; top:0; left:0; width:60%; height:100%;
+  background:linear-gradient(90deg, transparent, rgba(255,220,190,.10), transparent);
+  animation:sweep 1.6s ease-in-out .25s both}
+
+/* logo 呼吸 */
+#loader .lt{animation:logoBreath 2.4s ease-in-out infinite, fadeIn .5s ease both}
+
+/* 动态壁纸 */
+#bg{animation:bgDrift 26s ease-in-out infinite}
+
+/* 输入框：只加外发光呼吸，不动底色与边框色 */
+@keyframes glowBreath{0%,100%{box-shadow:0 0 0 0 rgba(255,185,138,.06)}
+  50%{box-shadow:0 0 0 3px rgba(255,185,138,.18)}}
+#inp{animation:glowBreath 4s ease-in-out infinite}
+
+/* 立绘呼吸（头像） */
+.pav{animation:avatarFloat 4.2s ease-in-out infinite}
+.pav:nth-child(2n){animation-delay:.6s}
+.pav:nth-child(3n){animation-delay:1.2s}
+
+/* 情绪色谱：只在外侧加一条细边，不改气泡底色 */
+.bub.her{position:relative}
+.bub.her::before{content:""; position:absolute; left:-3px; top:6px; bottom:6px; width:2px;
+  border-radius:2px; background:var(--moodcolor, rgba(255,185,138,.45)); opacity:.8}
+
+/* 时间分隔「后来」 */
+.gapnote{display:flex; align-items:center; gap:10px; margin:18px 6px 8px;
+  font-size:11px; letter-spacing:.28em; color:rgba(239,233,225,.34);
+  animation:ghostText .5s ease both}
+.gapnote::before,.gapnote::after{content:""; flex:1; height:1px; background:rgba(239,233,225,.10)}
+
+/* 记忆星图 / 关系年轮 弹层 */
+#sky{position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+  background:rgba(6,8,12,.78); backdrop-filter:blur(6px); z-index:95}
+#sky.on{display:flex; animation:fadeIn .3s ease both}
+#sky .panel{position:relative; width:min(560px,92vw); background:rgba(14,18,24,.96);
+  border:1px solid rgba(239,233,225,.12); border-radius:18px; padding:18px 18px 12px}
+#sky canvas{width:100%; height:420px; display:block; cursor:grab}
+#sky .cap{font-size:11.5px; letter-spacing:.2em; color:rgba(239,233,225,.45); text-align:center; margin-top:6px}
+#sky .x{position:absolute; right:12px; top:10px; cursor:pointer; color:rgba(239,233,225,.5); font-size:13px}
+
+
+/* ===== 消息操作：菜单 / 引用 / 碎裂 ===== */
+#msgmenu{position:fixed; z-index:99; display:none; min-width:132px; padding:6px;
+  background:rgba(18,22,28,.97); border:1px solid rgba(239,233,225,.14); border-radius:12px;
+  box-shadow:0 18px 40px rgba(0,0,0,.5); backdrop-filter:blur(8px)}
+#msgmenu.on{display:block; animation:cardIn .16s ease both}
+#msgmenu button{display:block; width:100%; text-align:left; padding:8px 12px; border:0; cursor:pointer;
+  background:transparent; color:rgba(239,233,225,.86); font-size:13px; font-family:inherit; border-radius:8px}
+#msgmenu button:hover{background:rgba(255,255,255,.07)}
+#msgmenu button.danger{color:#ff9a8a}
+
+/* 引用条（输入框上方） */
+#quotebar{display:none; align-items:center; gap:8px; margin:0 14px 6px; padding:7px 10px;
+  border-left:2px solid rgba(255,185,138,.65); background:rgba(255,255,255,.04);
+  border-radius:0 8px 8px 0; font-size:12px; color:rgba(239,233,225,.62)}
+#quotebar.on{display:flex}
+#quotebar .t{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+#quotebar .x{cursor:pointer; color:rgba(239,233,225,.45)}
+
+/* 气泡里的引用小条 */
+.bub .q{display:block; margin-bottom:6px; padding:4px 8px; font-size:11.5px;
+  color:rgba(239,233,225,.55); border-left:2px solid rgba(255,185,138,.45);
+  background:rgba(255,255,255,.035); border-radius:0 6px 6px 0; cursor:pointer;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%}
+.bub.me .q{color:rgba(60,45,35,.6); background:rgba(0,0,0,.05); border-left-color:rgba(60,45,35,.3)}
+
+/* 被引用那条浮一下 */
+.bub.flash{animation:quoteFlash 1.1s ease both}
+@keyframes quoteFlash{0%{transform:translateY(0) scale(1)}25%{transform:translateY(-6px) scale(1.012)}
+  100%{transform:none}}
+
+/* 碎裂的小块 */
+.shard{position:fixed; pointer-events:none; z-index:98; border-radius:3px;
+  will-change:transform,opacity}
+
+
+/* 撤回提示 */
+.bub.recalled{background:none !important; border:none !important; box-shadow:none !important;
+  color:rgba(239,233,225,.38); font-size:12px; letter-spacing:.06em}
+.bub.recalled .rtip{padding:2px 0}
+
+#imgPrev{display:none; gap:8px; padding:0 14px 8px}
+#imgPrev.on{display:flex}
+#imgPrev img{width:64px; height:64px; object-fit:cover; border-radius:8px;
+  border:1px solid rgba(239,233,225,.18)}
+.bub img.pic{max-width:260px; border-radius:10px; display:block; margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -517,6 +704,15 @@ body{
     <div class="fld">
       <label>昵称</label>
       <input id="setNick" type="text" placeholder="她想怎么叫你">
+    </div>
+
+    <div class="fld">
+      <label>关系</label>
+      <div class="row">
+        <button class="tab" id="mdRomance" style="flex:1">恋爱</button>
+        <button class="tab" id="mdCompanion" style="flex:1">陪伴</button>
+      </div>
+      <div class="smsg" id="modeMsg">陪伴：她记得你，但不谈关系</div>
     </div>
 
     <div class="fld">
@@ -549,11 +745,37 @@ body{
       <div class="smsg" id="pwMsg"></div>
     </div>
 
+    <div class="fld" style="margin-top:18px">
+      <label>应急</label>
+      <a href="/ds" target="_blank" style="display:block;padding:9px 12px;border-radius:10px;
+         background:rgba(255,255,255,.04);border:1px solid rgba(239,233,225,.16);
+         color:rgba(239,233,225,.82);font-size:13.5px;text-decoration:none">直连 DeepSeek（不记记忆）→</a>
+    </div>
+
+    <div class="fld" style="margin-top:18px">
+      <label>最近删除</label>
+      <button class="sbtn" id="trashBtn">查看最近删除</button>
+      <div id="trashList" style="margin-top:8px;font-size:12.5px;line-height:1.9;color:rgba(239,233,225,.6)"></div>
+    </div>
+
     <div class="swarn">
       <button id="setClose">关闭</button>
     </div>
   </div>
 </div>
+
+<div id="sky"><div class="panel">
+  <div class="x" id="skyX">关闭</div>
+  <canvas id="skyCv"></canvas>
+  <div class="cap" id="skyCap"></div>
+</div></div>
+
+<div id="msgmenu">
+  <button id="mmQuote">引用这句</button>
+  <button id="mmDel" class="danger">删除</button>
+</div>
+
+<div id="modeveil"></div>
 
 <div id="wip">
   <div class="wbox">
@@ -672,8 +894,12 @@ body{
       <a class="scenebtn" href="/piano" style="border-color:rgba(255,190,150,.3);color:#ffcf9e">她弹</a>
       <a class="scenebtn" href="/keys" style="border-color:rgba(160,220,255,.3);color:#9fd0ff">你弹</a>
     </div>
+    <div id="imgPrev"></div>
+    <div id="quotebar"><span class="t" id="quoteText"></span><span class="x" id="quoteX">×</span></div>
     <div id="composer">
       <textarea id="inp" rows="1" placeholder="说点什么……"></textarea>
+      <button id="pickImg" title="发图片">🖼</button>
+      <input type="file" id="imgFile" accept="image/*" style="display:none">
       <button id="send">↑</button>
     </div>
   </div>
@@ -914,10 +1140,32 @@ function setRing(r){
 }
 
 /* ================= 气泡 ================= */
-function addBub(role, text){
+function addBub(role, text, meta){
   const d = document.createElement("div");
   d.className = "bub " + (role === "user" ? "me" : (role === "sys" ? "sys" : "her"));
-  d.innerHTML = role === "user" ? esc(text) : rich(text);
+  if (meta && meta.id) d.setAttribute("data-id", meta.id);
+  if (meta && meta.created_at) d.setAttribute("data-at", meta.created_at);
+  let quoteHtml = "";
+  if (meta && meta.recalled_at){
+    d.classList.add("recalled");
+    d.innerHTML = '<span class="rtip">' + (meta.recalled_by === "ai" ? "她撤回了一条消息" : "你撤回了一条消息") + '</span>';
+    $("stream").appendChild(d);
+    return d;
+  }
+  if (meta && meta.reply_to) {
+    const src = document.querySelector('.bub[data-id="' + meta.reply_to + '"]');
+    const qt = src ? (src.textContent || "").trim().slice(0, 40) : "（已引用一条消息）";
+    quoteHtml = '<span class="q" data-to="' + meta.reply_to + '">' + esc(qt) + '</span>';
+  }
+  let imgHtml = "";
+  let _att = meta && meta.attachments;
+  if (typeof _att === "string"){ try { _att = JSON.parse(_att); } catch(e){ _att = null; } }
+  if (Array.isArray(_att)){
+    _att.forEach(function (u){
+      imgHtml += '<img class="pic" src="' + esc(u) + '" loading="lazy">';
+    });
+  }
+  d.innerHTML = imgHtml + quoteHtml + (role === "user" ? esc(text) : rich(text));
   $("stream").appendChild(d);
   $("stream").scrollTop = $("stream").scrollHeight;
   return d;
@@ -930,9 +1178,10 @@ function renderHistory(hist){
   (hist || []).forEach(item => {
     let c = item.content;
     if (Array.isArray(c)) c = c.map(x => x.text || "").join("");
-    if (item.role === "user") addBub("user", c);
-    else addBub("assistant", c);
+    if (item.role === "user") addBub("user", c, item);
+    else addBub("assistant", c, item);
   });
+  if (window.__addGaps) setTimeout(window.__addGaps, 0);
 }
 
 /* ================= 打字机 ================= */
@@ -971,6 +1220,16 @@ async function api(path, body, method){
   const r = await fetch(path, opt);
   return await r.json();
 }
+
+
+/* ===== 复制成功脉冲 ===== */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-copy], .copy, #copyBtn");
+  if (!b) return;
+  b.classList.remove("pulse");
+  void b.offsetWidth;
+  b.classList.add("pulse");
+}, true);
 
 /* ================= 渲染角色条 ================= */
 function renderRail(){
@@ -1090,9 +1349,11 @@ async function send(){
 
   if (!S.user_id){ addBub("sys", "先登录"); return; }
 
+  const imgUrl = window.__takeImage ? window.__takeImage() : null;
+
   box.value = "";
   box.style.height = "auto";
-  addBub("user", text);
+  addBub("user", text, { attachments: imgUrl ? [imgUrl] : null });
   thinking();
 
   S.busy = true;
@@ -1101,9 +1362,23 @@ async function send(){
     const d = await api("/api/chat", {
       user_id: S.user_id, persona: S.persona,
       session_id: S.session_id, message: text, history: S.history,
+      images: imgUrl ? [imgUrl] : [],
     });
     unthink();
     if (!d.ok) throw new Error(d.error || "没有回复");
+
+    if (window.__markQuote) await window.__markQuote();
+
+    // 她撤回：把对应气泡换成灰条
+    if (d.recalled_ids && d.recalled_ids.length){
+      d.recalled_ids.forEach(function (rid){
+        const el = document.querySelector('.bub[data-id="' + rid + '"]');
+        if (el){
+          el.classList.add("recalled");
+          el.innerHTML = '<span class="rtip">她撤回了一条消息</span>';
+        }
+      });
+    }
 
     S.history = d.history || S.history;
     if (d.session_id) { S.session_id = d.session_id; localStorage.setItem("pn_sid", S.session_id); }
@@ -1229,8 +1504,61 @@ $("setBtn").addEventListener("click", async () => {
       const st = d.user.reply_style || "normal";
       pickStyle(["normal","short","long"].includes(st) ? st : "normal");
     }
+    await loadMode();
   } catch (e) {}
 });
+// ---- 关系模式 ----
+let modePick = "romance";
+
+function paintMode(m){
+  modePick = (m === "companion") ? "companion" : "romance";
+  $("mdRomance").classList.toggle("on", modePick === "romance");
+  $("mdCompanion").classList.toggle("on", modePick === "companion");
+  $("modeMsg").textContent = modePick === "companion"
+    ? "陪伴：她记得你，但不谈关系"
+    : "恋爱：有进度，会推进关系";
+}
+
+async function loadMode(){
+  if (!S.user_id) return;
+  try {
+    const d = await api("/api/mode?u=" + encodeURIComponent(S.user_id) + "&p=" + encodeURIComponent(S.persona || ""));
+    if (d.ok) paintMode(d.mode);
+  } catch (e) {}
+}
+
+async function switchMode(m){
+  if (!S.user_id || m === modePick) return;
+  // 特效：先压暗，关系条归零
+  const veil = $("modeveil");
+  if (veil) veil.classList.add("on");
+  document.querySelectorAll(".rbar .bf").forEach(b => { b.style.width = "0%"; });
+  const rf = document.querySelectorAll(".rfill");
+  rf.forEach(el => { try { el.style.strokeDashoffset = "999"; } catch(e){} });
+  await new Promise(r => setTimeout(r, 420));
+
+  $("modeMsg").textContent = "正在改……";
+  try {
+    const d = await api("/api/mode", { u: S.user_id, p: S.persona || "", mode: m }, "POST");
+    if (d.ok){
+      paintMode(d.mode);
+      $("modeMsg").textContent = d.mode === "companion"
+        ? "改好了。她还是记得你，只是不再谈关系。"
+        : "改好了。关系从今天重新开始算。";
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      $("modeMsg").textContent = d.error || "没改成";
+      if (veil) veil.classList.remove("on");
+    }
+  } catch (e){
+    $("modeMsg").textContent = "没改成";
+    if (veil) veil.classList.remove("on");
+  }
+}
+
+$("mdRomance").addEventListener("click", () => switchMode("romance"));
+$("mdCompanion").addEventListener("click", () => switchMode("companion"));
+
 $("setClose").addEventListener("click", () => $("set").classList.remove("on"));
 $("set").addEventListener("click", e => { if (e.target.id === "set") $("set").classList.remove("on"); });
 
@@ -1362,8 +1690,1555 @@ async function afterNotice(){
   }
 }
 
+
+/* ================= 动效包 v2（脚本部分） ================= */
+(function(){
+  // 1) 粒子
+  var cv = document.getElementById("dust");
+  if (cv){
+    var ctx = cv.getContext("2d"), w = 0, h = 0, pts = [];
+    function resize(){
+      w = cv.width = window.innerWidth; h = cv.height = window.innerHeight;
+      var n = Math.min(90, Math.round(w * h / 26000));
+      pts = [];
+      for (var i = 0; i < n; i++){
+        pts.push({ x: Math.random()*w, y: Math.random()*h,
+          r: Math.random()*1.6 + 0.4, vy: -(Math.random()*0.18 + 0.04),
+          a: Math.random()*0.5 + 0.15 });
+      }
+    }
+    function tick(){
+      ctx.clearRect(0,0,w,h);
+      for (var i = 0; i < pts.length; i++){
+        var p = pts[i];
+        p.y += p.vy;
+        if (p.y < -6){ p.y = h + 6; p.x = Math.random()*w; }
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832);
+        ctx.fillStyle = "rgba(255,214,170," + p.a + ")"; ctx.fill();
+      }
+      requestAnimationFrame(tick);
+    }
+    window.addEventListener("resize", resize);
+    resize(); tick();
+  }
+
+  // 2) 背景视差
+  var bg = document.getElementById("bg");
+  if (bg){
+    window.addEventListener("mousemove", function(e){
+      var dx = (e.clientX / window.innerWidth - 0.5) * 10;
+      var dy = (e.clientY / window.innerHeight - 0.5) * 10;
+      bg.style.transform = "translate3d(" + dx + "px," + dy + "px,0) scale(1.02)";
+    });
+  }
+
+  // 3) 新消息高亮 + 长消息折叠
+  var stream = document.getElementById("stream");
+  if (stream && window.MutationObserver){
+    var mo = new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        Array.prototype.forEach.call(m.addedNodes, function(node){
+          if (!node.classList || !node.classList.contains("bub")) return;
+          node.classList.add("fresh");
+          var len = (node.textContent || "").length;
+          if (len > 600){
+            node.classList.add("clip");
+            node.addEventListener("click", function(){ node.classList.remove("clip"); }, { once: true });
+          }
+        });
+      });
+    });
+    mo.observe(stream, { childList: true });
+  }
+
+  // 4) 声音（默认关：localStorage pn_sound=1 才响）
+  var ac = null;
+  window.__beep = function(freq, dur, vol){
+    if (localStorage.getItem("pn_sound") !== "1") return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = freq; o.type = "sine"; g.gain.value = vol;
+      o.connect(g); g.connect(ac.destination);
+      o.start(); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+      o.stop(ac.currentTime + dur);
+    } catch(e){}
+  };
+  document.addEventListener("click", function(e){
+    if (e.target && e.target.id === "send") window.__beep(660, 0.08, 0.06);
+  }, true);
+})();
+
+
+/* ================= 动效包 v3（脚本） ================= */
+(function(){
+  // ① 时间分隔「后来」：历史渲染后，按 30 分钟间隔插一条
+  var stream = document.getElementById("stream");
+  function addGaps(){
+    if (!stream) return;
+    var kids = Array.prototype.slice.call(stream.children);
+    if (kids.length < 2) return;
+    // 简单版：消息超过 12 条，在中间插一条「后来」
+    if (kids.length > 12 && !stream.querySelector(".gapnote")){
+      var mid = kids[Math.floor(kids.length / 2)];
+      var g = document.createElement("div");
+      g.className = "gapnote";
+      g.textContent = "后来";
+      stream.insertBefore(g, mid);
+    }
+  }
+  var mo = new MutationObserver(function(){ addGaps(); });
+  if (stream) mo.observe(stream, { childList: true });
+  window.__addGaps = addGaps;
+
+  // ② 情绪色谱：气泡左侧色条跟随情绪
+  window.setMoodColor = function(mood){
+    var map = {
+      "开心": "rgba(255,200,120,.85)", "高兴": "rgba(255,200,120,.85)",
+      "平静": "rgba(150,190,255,.55)", "低落": "rgba(120,140,190,.55)",
+      "难过": "rgba(110,130,200,.65)", "生气": "rgba(255,140,120,.75)",
+      "累": "rgba(150,160,190,.5)"
+    };
+    var c = map[mood] || "rgba(255,185,138,.5)";
+    if (stream) stream.style.setProperty("--moodcolor", c);
+  };
+
+  // ④ 关系变更卡：切换模式后弹一张
+  window.__modeCard = function(to){
+    var el = document.createElement("div");
+    el.className = "gapnote";
+    el.textContent = (to === "companion") ? "从今天起，她只是陪着你" : "从今天起，关系重新开始算";
+    if (stream){ stream.appendChild(el); stream.scrollTop = stream.scrollHeight; }
+  };
+
+  // ⑤ 心跳：情绪高时低频两下
+  window.__heartbeat = function(){
+    if (typeof window.__beep === "function"){
+      window.__beep(58, .18, .05);
+      setTimeout(function(){ window.__beep(52, .22, .04); }, 240);
+    }
+  };
+})();
+
+
+/* ================= 消息操作（脚本）：引用 / 删除 / 碎裂 ================= */
+(function(){
+  var stream = document.getElementById("stream");
+  var menu = document.getElementById("msgmenu");
+  var qbar = document.getElementById("quotebar");
+  var qtext = document.getElementById("quoteText");
+  var curEl = null, curId = null, quoteId = null;
+
+  function closeMenu(){ if (menu) menu.classList.remove("on"); curEl = null; curId = null; }
+
+  // 长按 / 右键弹出菜单
+  function openMenu(el, x, y){
+    if (!menu) return;
+    curEl = el;
+    curId = el.getAttribute("data-id");
+    var own = el.classList.contains("me");
+    document.getElementById("mmDel").style.display = own ? "block" : "none";
+    var rc = document.getElementById("mmRecall");
+    var canRecall = false;
+    if (own && el.getAttribute("data-at")){
+      var t0 = Date.parse((el.getAttribute("data-at") || "").replace(" ", "T"));
+      if (!isNaN(t0) && (Date.now() - t0) < 2 * 60 * 1000) canRecall = true;
+    }
+    if (rc) rc.style.display = canRecall ? "block" : "none";
+    menu.style.left = Math.min(x, window.innerWidth - 150) + "px";
+    menu.style.top = Math.min(y, window.innerHeight - 110) + "px";
+    menu.classList.add("on");
+  }
+
+  document.addEventListener("contextmenu", function(e){
+    var el = e.target.closest && e.target.closest(".bub");
+    if (!el) return;
+    e.preventDefault();
+    openMenu(el, e.clientX, e.clientY);
+  }, false);
+
+  var pressTimer = null;
+  document.addEventListener("touchstart", function(e){
+    var el = e.target.closest && e.target.closest(".bub");
+    if (!el) return;
+    var t = e.touches[0];
+    pressTimer = setTimeout(function(){
+      openMenu(el, t.clientX, t.clientY);
+    }, 520);
+  }, { passive: true });
+  document.addEventListener("touchend", function(){ clearTimeout(pressTimer); }, { passive: true });
+  document.addEventListener("touchmove", function(){ clearTimeout(pressTimer); }, { passive: true });
+
+  document.addEventListener("click", function(e){
+    if (menu && menu.classList.contains("on") && !menu.contains(e.target)) closeMenu();
+  }, true);
+
+  // 引用
+  var mmQuote = document.getElementById("mmQuote");
+  if (mmQuote) mmQuote.addEventListener("click", function(){
+    if (!curEl) return;
+    quoteId = curId;
+    var txt = (curEl.textContent || "").trim().slice(0, 60);
+    if (qtext) qtext.textContent = txt;
+    if (qbar) qbar.classList.add("on");
+    closeMenu();
+  });
+
+  var quoteX = document.getElementById("quoteX");
+  if (quoteX) quoteX.addEventListener("click", function(){
+    quoteId = null;
+    if (qbar) qbar.classList.remove("on");
+  });
+
+  // 删除（碎裂）
+  function shatter(el, done){
+    var r = el.getBoundingClientRect();
+    var n = 14;
+    for (var i = 0; i < n; i++){
+      var s = document.createElement("div");
+      s.className = "shard";
+      var w = r.width / 4, h = r.height / 4;
+      s.style.width = w + "px"; s.style.height = h + "px";
+      s.style.left = (r.left + (i % 4) * w) + "px";
+      s.style.top = (r.top + Math.floor(i / 4) * h) + "px";
+      s.style.background = "rgba(255,220,190,.22)";
+      document.body.appendChild(s);
+      (function(sh, idx){
+        var dx = (Math.random() - .5) * 260, dy = (Math.random() - .2) * 220;
+        sh.animate([
+          { transform: "translate(0,0) rotate(0deg)", opacity: .9 },
+          { transform: "translate(" + dx + "px," + dy + "px) rotate(" + (Math.random()*180-90) + "deg)", opacity: 0 }
+        ], { duration: 620 + Math.random()*220, easing: "cubic-bezier(.2,.7,.3,1)" }).onfinish = function(){
+          sh.remove();
+        };
+      })(s, i);
+    }
+    el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: "ease" }).onfinish = function(){
+      el.style.display = "none";
+      done && done();
+    };
+  }
+
+  var mmRecall = document.getElementById("mmRecall");
+  if (mmRecall) mmRecall.addEventListener("click", async function(){
+    if (!curEl || !curId) return;
+    var el = curEl, id = curId;
+    closeMenu();
+    try {
+      await fetch("/api/msg/recall", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u: S.user_id, p: S.persona || "", id: Number(id), by: "user" })
+      });
+    } catch(e){}
+    el.classList.add("recalled");
+    el.innerHTML = '<span class="rtip">你撤回了一条消息</span>';
+  });
+
+  var mmDel = document.getElementById("mmDel");
+  if (mmDel) mmDel.addEventListener("click", async function(){
+    if (!curEl || !curId) return;
+    var el = curEl, id = curId;
+    closeMenu();
+    try {
+      await fetch("/api/msg/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u: S.user_id, id: Number(id) })
+      });
+    } catch(e){}
+    shatter(el, function(){
+      var tip = document.createElement("div");
+      tip.className = "gapnote";
+      tip.innerHTML = "删掉了 · <a href='#' style='color:#ffb98a'>撤销</a>";
+      tip.querySelector("a").addEventListener("click", async function(ev){
+        ev.preventDefault();
+        await fetch("/api/msg/restore", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ u: S.user_id, id: Number(id) })
+        });
+        el.style.display = "";
+        el.classList.add("fresh");
+        tip.remove();
+      });
+      stream.appendChild(tip);
+      setTimeout(function(){ if (tip.parentNode) tip.remove(); }, 6000);
+    });
+  });
+
+  // 发送后把引用标记写上去
+  window.__takeQuote = function(){ var q = quoteId; quoteId = null; if (qbar) qbar.classList.remove("on"); return q; };
+  window.__markQuote = async function(){
+    if (!quoteId) return;
+    try {
+      await fetch("/api/msg/quote", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u: S.user_id, p: S.persona || "", reply_to: Number(quoteId) })
+      });
+    } catch(e){}
+    quoteId = null;
+    if (qbar) qbar.classList.remove("on");
+  };
+
+  // 点引用小条 → 让被引用的那条浮一下
+  document.addEventListener("click", function(e){
+    var q = e.target.closest && e.target.closest(".q");
+    if (!q) return;
+    var id = q.getAttribute("data-to");
+    var target = id && document.querySelector('.bub[data-id="' + id + '"]');
+    if (!target) return;
+    target.classList.remove("flash");
+    void target.offsetWidth;
+    target.classList.add("flash");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, false);
+})();
+
 </script>
 
 
+
+<script type="module">
+/* ================= ③ 记忆星图 V3（恒星系与银河） =================
+   替换旧版 drawSky() / openSky()（2D 螺旋）。
+   用法：删掉 index.html 里旧的「③ 记忆星图（真·星图）」整段
+        （从 `// ③ 记忆星图` 注释到 resize 监听那一行为止），
+         然后在 </body> 前加入：
+         <script type="module"> ……本文件内容…… <\/script>
+   DOM 契约：#sky 弹层 / #skyCv 画布（每次打开重建，保证 WebGL context 干净）/
+            #skyCap 底部说明文字。
+   数据契约：GET /api/memories?u=&p= → { ok, items:[{key,value,persona,priority,ts,pinned}] }
+   依赖：three.js 0.160.0 module 版，动态 import 自 CDN 回退链。
+*/
+(function(){
+  "use strict";
+  var sky  = document.getElementById("sky"),
+      cap  = document.getElementById("skyCap"),
+      panel = sky ? sky.querySelector(".panel") : null;
+  if (!sky || !panel || !cap) return;
+
+  /* ---- 常量 ---- */
+  var GOLDEN     = 2.399963;
+  var SYS_R      = 96;                              // 恒星系分布盘半径
+  var ORBIT_A    = 9, ORBIT_B = 21, ORBIT_JIT = 1.0;
+  var ORBIT_K    = 1.8;                             // 公转 ω = K/sqrt(r)：内圈≈12s 外圈≈29s 一圈
+  var STAR_HALO_MIN = 14, STAR_HALO_MAX = 22;        // 恒星光晕直径（世界单位）
+  var CORE_MIN = 3.6, CORE_MAX = 5.2;               // 恒星亮核直径
+  var PITCH0 = 34 * Math.PI / 180;
+  var PITCH_MIN = -7 * Math.PI / 180, PITCH_MAX = 43 * Math.PI / 180;   // ±25°
+  var D0 = 168, ZOOM_MIN = 0.4, ZOOM_MAX = 4.0;     // 全景推拉 0.4×~4×
+  var FOCUS_DIST = 34;                              // 聚焦一个恒星系时的距离
+  var FOCUS_DMIN = 14, FOCUS_DMAX = 120;
+  var GAL_ROT = 0.005;                              // 整片星空自转（≤0.01 rad/s）
+  var FOV = 55 * Math.PI / 180;
+  var MAX_BODIES = 500;
+
+  /* ---- 星云背景（CSS，秒出首帧；3~4 层大尺度渐变） ---- */
+  var NEBULA_CSS = [
+    "radial-gradient(60% 50% at 28% 30%, rgba(120,90,200,.10), transparent 72%)",
+    "radial-gradient(50% 42% at 74% 62%, rgba(255,150,120,.07), transparent 72%)",
+    "radial-gradient(75% 68% at 50% 44%, rgba(80,150,255,.06), transparent 75%)",
+    "radial-gradient(40% 34% at 60% 24%, rgba(120,90,200,.05), transparent 70%)",
+    "#06070c"
+  ].join(",");
+
+  /* ---- persona → 色相（哈希，饱和度压低） ---- */
+  function hueOf(name){
+    var h = 0;
+    for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return h % 360;
+  }
+
+  function parseTs(s){
+    if (!s) return 0;
+    var d = new Date(String(s).replace(" ", "T"));
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  /* ---- 一次性纹理 ---- */
+  function glowTex(){
+    var c = document.createElement("canvas"); c.width = c.height = 128;
+    var g = c.getContext("2d");
+    var gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0,    "rgba(255,255,255,1)");
+    gr.addColorStop(0.2,  "rgba(255,255,255,.75)");
+    gr.addColorStop(0.5,  "rgba(255,255,255,.18)");
+    gr.addColorStop(1,    "rgba(255,255,255,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+  function ringTex(){
+    var c = document.createElement("canvas"); c.width = c.height = 96;
+    var g = c.getContext("2d");
+    g.strokeStyle = "rgba(255,255,255,.95)";
+    g.lineWidth = 5;
+    g.shadowColor = "rgba(255,255,255,.7)"; g.shadowBlur = 6;
+    g.beginPath(); g.arc(48, 48, 40, 0, 6.2832); g.stroke();
+    return new THREE.CanvasTexture(c);
+  }
+  function textTex(str){
+    var c = document.createElement("canvas"); c.height = 96;
+    var g = c.getContext("2d");
+    g.font = '32px "Songti SC","SimSun","Noto Serif SC",serif';
+    var tw = g.measureText(str).width;
+    c.width = Math.ceil(tw) + 48;
+    g = c.getContext("2d");
+    g.font = '32px "Songti SC","SimSun","Noto Serif SC",serif';
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = "rgba(255,222,190,.78)";
+    g.fillText(str, c.width / 2, 48);
+    return { tex: new THREE.CanvasTexture(c), w: c.width, h: 96 };
+  }
+
+  /* ---- three.js 懒加载（CDN 回退链，动态 import） ---- */
+  var THREE = null, threePromise = null;
+  var THREE_CDNS = [
+  "/app/three.module.js",
+    "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "https://cdn.bootcdn.net/ajax/libs/three.js/0.160.0/three.module.js",
+    "https://lib.baomitu.com/three.js/0.160.0/three.module.js"
+  ];
+  function ensureThree(){
+    if (THREE) return Promise.resolve(THREE);
+    if (!threePromise){
+      threePromise = import(THREE_CDNS[0])
+        .catch(function(){ return import(THREE_CDNS[1]); })
+        .catch(function(){ return import(THREE_CDNS[2]); })
+        .catch(function(){ return import(THREE_CDNS[3]); })
+        .catch(function(){ return null; })
+        .then(function(m){ THREE = (m && m.WebGLRenderer) ? m : null; return THREE; });
+    }
+    return threePromise;
+  }
+
+  function loadMemories(){
+    var uid = (typeof S !== "undefined" && S && S.user_id) || "";
+    var p   = (typeof S !== "undefined" && S && S.persona)  || "";
+    return fetch("/api/memories?u=" + encodeURIComponent(uid) + "&p=" + encodeURIComponent(p))
+      .then(function(r){ return r.json(); });
+  }
+
+  var app = null;
+
+  /* ================= 打开 ================= */
+  function openSky(){
+    if (app) closeSky();
+    sky.classList.add("on");
+
+    /* 每次打开用全新 canvas：旧 context 直接废弃，杜绝二次打开白屏 */
+    var old = document.getElementById("skyCv");
+    var cv = document.createElement("canvas");
+    cv.id = "skyCv";
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    panel.insertBefore(cv, cap);
+    cv.style.touchAction = "none";
+    cv.style.cursor = "grab";
+    cap.textContent = "正在铺开星空…";
+
+    var st = {
+      cv: cv, THREE: null, renderer: null, scene: null, camera: null,
+      galaxy: null, arms: null, sysPos: null, sysSpin: null,
+      starCore: [], starHalo: [], haloBase: [], coreBase: [], breathPhase: [],
+      bodies: null, bodySys: null, bodyR: null, bodyTheta0: null, bodyOmega: null,
+      bodyOrbitR: null, bodyY: null, moonParent: null, moonR: null, moonTheta0: null, moonOmega: null, moonY: null,
+      planetLocal: null, bodyWorld: null, starWorld: null, sysRot: null,
+      pinLines: null, pinIdx: null, __pmIdx: null, __amIdx: null,
+      sysMats: [], sysBaseOp: [],
+      ringSpr: null, hoverRing: null, textSpr: null,
+      tex: {}, yaw: 0, yawVel: 0, pitch: PITCH0, pitchVel: 0,
+      dist: D0, distTarget: D0, galRot: 0,
+      hover: null, selected: -1, focus: -1, focusPos: null,
+      dragPt: null, ptrs: null, pinchD: 0, pinchD0: 0,
+      lpTimer: 0, lpFired: false, downAt: 0, downX: 0, downY: 0, moved: 0, lastMoveT: 0,
+      kRot: 0, raf: 0, last: 0, emaFps: -1, lastGood: 0, degraded: false,
+      resetting: false, panelBg: "", t0: 0,
+      _v: null, _c: null
+    };
+    app = st;
+    st.panelBg = panel.style.background;
+    panel.style.background = NEBULA_CSS;
+
+    bindInput(st);
+    ensureThree().then(function(T){
+      if (!app || app !== st) return;
+      if (!T){
+        cap.textContent = "星图加载失败：three.js CDN 不可达";
+        return;
+      }
+      st.THREE = T;
+      initScene(st);
+      startLoop(st);
+      loadMemories().then(function(d){
+        if (!app || app !== st) return;
+        buildSystems(st, d.items || []);
+      }).catch(function(){
+        if (!app || app !== st) return;
+        buildSystems(st, []);
+        cap.textContent = "记忆读取失败，稍后再试";
+      });
+    });
+  }
+
+  /* ================= 场景（银河先出，首帧 <200ms） ================= */
+  function initScene(st){
+    var T = st.THREE, cv = st.cv;
+    var w = cv.clientWidth || 1, h = cv.clientHeight || 1;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    var renderer = new T.WebGLRenderer({ canvas: cv, alpha: true, antialias: true,
+      powerPreference: "high-performance",
+      preserveDrawingBuffer: !!window.__skyPreserve });
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(w, h, false);
+    renderer.setClearColor(0x000000, 0);
+    st.renderer = renderer;
+
+    var scene = new T.Scene();
+    st.scene = scene;
+
+    var camera = new T.PerspectiveCamera(FOV * 180 / Math.PI, w / h, 0.5, 9000);
+    st.camera = camera;
+
+    /* 光：一个固定方向光 + 很弱的补光（行星明暗面） */
+    var dl = new T.DirectionalLight(0xffffff, 1.15);
+    dl.position.set(60, 90, 45);
+    scene.add(dl);
+    scene.add(new T.AmbientLight(0x3a4258, 0.30));
+
+    st.tex.glow = glowTex();
+    st.tex.ring = ringTex();
+
+    /* 银河：两条对数螺旋臂，几千个微弱粒子（亮度 ≤0.08） */
+    var galaxy = new T.Group();
+    scene.add(galaxy);
+    st.galaxy = galaxy;
+    var armN = 1500, total = armN * 2;
+    var apos = new Float32Array(total * 3), acol = new Float32Array(total * 3);
+    var tmpC = new T.Color(), tmpW = new T.Color(1, 1, 1), tmpB = new T.Color(0.62, 0.72, 0.95);
+    for (var a = 0; a < 2; a++){
+      for (var i = 0; i < armN; i++){
+        var t = i / (armN - 1);
+        var th = t * 4 * Math.PI + a * Math.PI;
+        var r = 3.5 * Math.exp(0.27 * th) * (0.92 + Math.random() * 0.16);
+        var j = (a * armN + i);
+        apos[j*3]   = Math.cos(th) * r + (Math.random() - 0.5) * 1.6;
+        apos[j*3+1] = (Math.random() - 0.5) * 1.4;
+        apos[j*3+2] = Math.sin(th) * r + (Math.random() - 0.5) * 1.6;
+        var b = 0.03 + Math.random() * 0.05;
+        tmpC.copy(tmpW).lerp(tmpB, Math.random() * 0.5);
+        acol[j*3] = tmpC.r * b; acol[j*3+1] = tmpC.g * b; acol[j*3+2] = tmpC.b * b;
+      }
+    }
+    var ag = new T.BufferGeometry();
+    ag.setAttribute("position", new T.BufferAttribute(apos, 3));
+    ag.setAttribute("color", new T.BufferAttribute(acol, 3));
+    var amat = new T.PointsMaterial({ size: 0.55, vertexColors: true, transparent: true,
+      blending: T.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+    var arms = new T.Points(ag, amat);
+    arms.renderOrder = 0;
+    arms.frustumCulled = false;
+    galaxy.add(arms);
+    st.arms = arms;
+
+    /* 选中/悬停环 + 空状态文案 */
+    st.ringSpr = new T.Sprite(new T.SpriteMaterial({ map: st.tex.ring, color: 0xffd9a8,
+      transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
+    st.ringSpr.visible = false;
+    st.ringSpr.renderOrder = 6;
+    scene.add(st.ringSpr);
+    st.hoverRing = new T.Sprite(new T.SpriteMaterial({ map: st.tex.ring, color: 0xffffff,
+      transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.8 }));
+    st.hoverRing.visible = false;
+    st.hoverRing.renderOrder = 6;
+    scene.add(st.hoverRing);
+    var tt = textTex("她还没记住什么。聊几句，这里就会亮起来。");
+    var textSpr = new T.Sprite(new T.SpriteMaterial({ map: tt.tex, transparent: true, depthWrite: false }));
+    textSpr.visible = false;
+    textSpr.renderOrder = 7;
+    var worldPx = D0 * Math.tan(FOV / 2) * 2 / h;
+    var tH = 15 * worldPx * (tt.h / 32);
+    textSpr.scale.set(tH * (tt.w / tt.h), tH, 1);
+    scene.add(textSpr);
+    st.textSpr = textSpr;
+
+    st.focusPos = new T.Vector3();
+    st._v = new T.Vector3();
+    st._c = new T.Color();
+    placeCamera(st);
+  }
+
+  function placeCamera(st){
+    var c = st.camera;
+    var cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+    if (st.focus >= 0){
+      var f = st.focusPos;
+      c.position.set(f.x + Math.sin(st.yaw) * cp * st.dist,
+                     f.y + sp * st.dist,
+                     f.z + Math.cos(st.yaw) * cp * st.dist);
+      c.lookAt(f);
+    } else {
+      c.position.set(0, sp * st.dist, cp * st.dist);
+      c.lookAt(0, 0, 0);
+    }
+  }
+
+  /* ================= 按角色建恒星系 ================= */
+  function buildSystems(st, items){
+    var T = st.THREE;
+    var list = items.map(function(m){
+      return { key: m.key, value: m.value, persona: m.persona || "__global__",
+               priority: m.priority || 3, pinned: !!m.pinned, ts: parseTs(m.ts) };
+    });
+    list.sort(function(a, b){ return a.ts - b.ts; });
+    if (list.length > MAX_BODIES) list = list.slice(list.length - MAX_BODIES);
+
+    if (!list.length){
+      st.textSpr.visible = true;
+      cap.textContent = "还没有记忆";
+      return;
+    }
+    st.textSpr.visible = false;
+
+    /* 分组：persona → 恒星系 */
+    var sysNames = [], sysMap = {}, sysMem = [];
+    list.forEach(function(m){
+      if (sysMap[m.persona] === undefined){ sysMap[m.persona] = sysNames.length; sysNames.push(m.persona); sysMem.push([]); }
+      sysMem[sysMap[m.persona]].push(m);
+    });
+    var NS = sysNames.length;
+    st.sysNames = sysNames;
+
+    /* 时间归一化（全局）：p=1 最新 */
+    var t0 = list[0].ts, t1 = list[list.length-1].ts, span = Math.max(1, t1 - t0);
+    var useIndex = span < 86400000 * 3;
+
+    /* 恒星系分布：黄金角螺旋，面积均匀，单系居中 */
+    st.sysPos = new Float32Array(NS * 3);
+    st.sysSpin = new Float32Array(NS);
+    st.breathPhase = new Float32Array(NS);
+    st.sysRot = new Float32Array(NS);
+    var hueMap = {};
+    for (var s = 0; s < NS; s++){
+      var rr = NS === 1 ? 0 : SYS_R * Math.sqrt((s + 0.5) / NS);
+      var th = s * GOLDEN;
+      st.sysPos[s*3] = Math.cos(th) * rr;
+      st.sysPos[s*3+1] = 0;
+      st.sysPos[s*3+2] = Math.sin(th) * rr;
+      st.sysSpin[s] = (0.012 + Math.random() * 0.028) * (Math.random() < 0.5 ? -1 : 1);
+      st.breathPhase[s] = Math.random() * 6.2832;
+      hueMap[sysNames[s]] = hueOf(sysNames[s]);
+    }
+
+    /* 天体清单：行星(pr≥5) / 卫星(2~4) / 小行星(1) */
+    var bodies = [], moons = [], pins = [];
+    var planetsBySys = {};
+    for (var b = 0; b < list.length; b++){
+      var m = list[b];
+      var si = sysMap[m.persona];
+      var idxInSys = (planetsBySys[si] = planetsBySys[si] || 0);
+      var pr = Math.max(1, Math.min(10, m.priority || 3));
+      var p = useIndex ? (b === list.length-1 ? 1 : b / (list.length - 1)) : (m.ts - t0) / span;
+      var orbitR = ORBIT_A + (1 - p) * ORBIT_B + (Math.random() - 0.5) * 2 * ORBIT_JIT;
+      orbitR = Math.max(6, orbitR);
+      if (pr >= 5){
+        var rad = pr >= 8 ? 1.5 + (pr - 8) * 0.3 : 0.9 + (pr - 5) * 0.22;
+        bodies.push({
+          sys: si, kind: "planet", idx: b, pr: pr,
+          r: rad, orbitR: orbitR,
+          theta0: idxInSys * GOLDEN,
+          omega: ORBIT_K / Math.sqrt(orbitR),
+          y: (Math.random() - 0.5) * 1.2,
+          pinned: m.pinned, m: m
+        });
+        if (m.pinned) pins.push(bodies.length - 1);
+        planetsBySys[si] = idxInSys + 1;
+      } else if (pr >= 2){
+        moons.push({
+          sys: si, kind: "moon", idx: b, pr: pr, m: m,
+          r: 0.45 + (pr - 2) * 0.14, orbitR: orbitR,
+          theta0: idxInSys * GOLDEN, idxInSys: idxInSys,
+          omega: 6.2832 / (4 + Math.random() * 2),        /* 4~6s 一圈 */
+          moonR: 0, moonTheta0: Math.random() * 6.2832,
+          moonY: (Math.random() - 0.5) * 0.5
+        });
+        planetsBySys[si] = idxInSys + 1;
+      } else {
+        bodies.push({
+          sys: si, kind: "asteroid", idx: b, pr: 1,
+          r: 0.14 + Math.random() * 0.12, orbitR: orbitR,
+          theta0: idxInSys * GOLDEN,
+          omega: ORBIT_K / Math.sqrt(orbitR),
+          y: (Math.random() - 0.5) * 1.2,
+          pinned: m.pinned, m: m
+        });
+        if (m.pinned) pins.push(bodies.length - 1);
+        planetsBySys[si] = idxInSys + 1;
+      }
+    }
+    /* 卫星绑定轨道最近的行星 */
+    var planetIdx = [];
+    for (var pb = 0; pb < bodies.length; pb++) if (bodies[pb].kind === "planet") planetIdx.push(pb);
+    for (var mo = 0; mo < moons.length; mo++){
+      var mm = moons[mo];
+      var best = -1, bestD = 1e9;
+      for (var k = 0; k < planetIdx.length; k++){
+        var pp = bodies[planetIdx[k]];
+        if (pp.sys !== mm.sys) continue;
+        var dd = Math.abs(pp.orbitR - mm.orbitR);
+        if (dd < bestD){ bestD = dd; best = planetIdx[k]; }
+      }
+      mm.moonR = best >= 0 ? bodies[best].r * 2.2 + 0.5 + Math.random() * 0.6 : ORBIT_A + 2;
+      mm.moonParent = best;
+      bodies.push(mm);
+    }
+
+    var NB = bodies.length;
+    st.bodies = bodies;
+    st.bodySys   = new Int16Array(NB);
+    st.bodyR     = new Float32Array(NB);
+    st.bodyTheta0= new Float32Array(NB);
+    st.bodyOmega = new Float32Array(NB);
+    st.bodyOrbitR= new Float32Array(NB);
+    st.bodyY     = new Float32Array(NB);
+    st.moonR     = new Float32Array(NB);
+    st.moonTheta0= new Float32Array(NB);
+    st.moonOmega = new Float32Array(NB);
+    st.moonY     = new Float32Array(NB);
+    st.moonParent= new Int32Array(NB);
+    st.planetLocal = new Float32Array(NB * 3);
+    st.bodyWorld   = new Float32Array(NB * 3);
+    st.starWorld   = new Float32Array(NS * 3);
+    for (var bi = 0; bi < NB; bi++){
+      var bd = bodies[bi];
+      st.bodySys[bi] = bd.sys;
+      st.bodyR[bi] = bd.r;
+      st.bodyTheta0[bi] = bd.theta0;
+      st.bodyOmega[bi] = bd.omega;
+      st.bodyOrbitR[bi] = bd.orbitR || 0;
+      st.bodyY[bi] = bd.y || 0;
+      st.moonR[bi] = bd.moonR || 0;
+      st.moonTheta0[bi] = bd.moonTheta0 || 0;
+      st.moonOmega[bi] = bd.moonOmega || 0;
+      st.moonY[bi] = bd.moonY || 0;
+      st.moonParent[bi] = bd.moonParent === undefined ? -1 : bd.moonParent;
+    }
+
+    /* 每系一个 InstancedMesh（行星+卫星，朗伯光照出明暗面） */
+    var sphereGeo = new T.SphereGeometry(1, 14, 10);
+    st.sphereGeo = sphereGeo;
+    var astGeo = new T.SphereGeometry(1, 8, 6);
+    st.astGeo = astGeo;
+    /* 全局天体下标 → 本系实例下标（行星/卫星与占位小行星各一张） */
+    st.__pmIdx = new Int32Array(NB);
+    st.__amIdx = new Int32Array(NB);
+    var pmCount = new Int32Array(NS), amCount = new Int32Array(NS);
+    for (var bi0 = 0; bi0 < NB; bi0++){
+      var si0 = st.bodySys[bi0];
+      if (bodies[bi0].kind === "asteroid") st.__amIdx[bi0] = amCount[si0]++;
+      else st.__pmIdx[bi0] = pmCount[si0]++;
+    }
+    var zeroM = new T.Matrix4().makeScale(0, 0, 0);
+    for (var s2 = 0; s2 < NS; s2++){
+      var pm = new T.MeshLambertMaterial({ color: new T.Color().setHSL(hueMap[sysNames[s2]] / 360, 0.26, 0.55) });
+      var pmMesh = new T.InstancedMesh(sphereGeo, pm, Math.max(1, pmCount[s2]));
+      pmMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+      pmMesh.setMatrixAt(0, zeroM);                       /* 占位实例：零缩放，防原点幽灵球 */
+      var icol = new Float32Array(Math.max(1, pmCount[s2]) * 3);
+      for (var c3 = 0; c3 < NB; c3++){
+        if (st.bodySys[c3] !== s2 || bodies[c3].kind === "asteroid") continue;
+        var col = bodies[c3].kind === "moon"
+          ? st._c.setHSL(hueMap[sysNames[s2]] / 360, 0.26, 0.30)          /* 卫星更暗更灰 */
+          : st._c.setHSL(hueMap[sysNames[s2]] / 360, 0.26, 0.44);
+        var li = st.__pmIdx[c3];
+        icol[li*3] = col.r; icol[li*3+1] = col.g; icol[li*3+2] = col.b;
+      }
+      pmMesh.instanceColor = new T.InstancedBufferAttribute(icol, 3);
+      pmMesh.renderOrder = 3;
+      pmMesh.frustumCulled = false;
+      st.galaxy.add(pmMesh);
+
+      /* 伪 bloom：同一套实例再画一层加色外壳 */
+      var gmat = new T.MeshBasicMaterial({
+        color: new T.Color().setHSL(hueMap[sysNames[s2]] / 360, 0.45, 0.62),
+        transparent: true, opacity: 0.16, blending: T.AdditiveBlending, depthWrite: false });
+      var glowMesh = new T.InstancedMesh(sphereGeo, gmat, Math.max(1, pmCount[s2]));
+      glowMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+      glowMesh.setMatrixAt(0, zeroM);
+      glowMesh.renderOrder = 4;
+      glowMesh.frustumCulled = false;
+      st.galaxy.add(glowMesh);
+      if (!st.glowMeshes) st.glowMeshes = [];
+      st.glowMeshes[s2] = glowMesh;
+
+      var am = new T.MeshBasicMaterial({ color: 0xc8ccd6, transparent: true, opacity: 0.28 });
+      var amMesh = new T.InstancedMesh(astGeo, am, Math.max(1, amCount[s2]));
+      amMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+      amMesh.setMatrixAt(0, zeroM);
+      amMesh.renderOrder = 2;
+      amMesh.frustumCulled = false;
+      st.galaxy.add(amMesh);
+      st.sysMats.push([pm, am]);
+      st.sysBaseOp.push([1, 0.35]);
+      st.sysMats[s2].__mesh = [pmMesh, amMesh];
+    }
+
+    /* 每系恒星：光晕（角色色相低饱和）+ 亮核（暖白），呼吸 3s */
+    var coreMat, haloMat;
+    for (var s3 = 0; s3 < NS; s3++){
+      var hw = STAR_HALO_MIN + Math.random() * (STAR_HALO_MAX - STAR_HALO_MIN);
+      haloMat = new T.SpriteMaterial({ map: st.tex.glow,
+        color: st._c.setHSL(hueMap[sysNames[s3]] / 360, 0.4, 0.78),
+        transparent: true, opacity: 0.85, depthWrite: false, blending: T.AdditiveBlending });
+      var halo = new T.Sprite(haloMat);
+      halo.position.set(st.sysPos[s3*3], st.sysPos[s3*3+1], st.sysPos[s3*3+2]);
+      halo.scale.set(hw, hw, 1);
+      halo.renderOrder = 4;
+      st.galaxy.add(halo);
+      st.starHalo.push(halo);
+      st.haloBase.push(hw);
+
+      coreMat = new T.SpriteMaterial({ map: st.tex.glow, color: 0xfff2e0,
+        transparent: true, opacity: 0.95, depthWrite: false, blending: T.AdditiveBlending });
+      var core = new T.Sprite(coreMat);
+      var cw = CORE_MIN + Math.random() * (CORE_MAX - CORE_MIN);
+      core.position.copy(halo.position);
+      core.scale.set(cw, cw, 1);
+      core.renderOrder = 5;
+      st.galaxy.add(core);
+      st.starCore.push(core);
+      st.coreBase.push(cw);
+
+      st.sysMats[s3].push(haloMat, coreMat);
+      st.sysBaseOp[s3].push(0.5, 0.95);
+    }
+
+    /* 每个恒星系一圈轨道环：让"围着谁转"看得出来 */
+    (function(){
+      for (var rs = 0; rs < NS; rs++){
+        for (var ringR = ORBIT_A + 4; ringR < ORBIT_A + ORBIT_B; ringR += 6){
+          var pts = [], seg = 72;
+          for (var k = 0; k <= seg; k++){
+            var a = k / seg * 6.2832;
+            pts.push(new T.Vector3(Math.cos(a) * ringR, 0, Math.sin(a) * ringR));
+          }
+          var rg = new T.BufferGeometry().setFromPoints(pts);
+          var rm = new T.LineBasicMaterial({ color: st._c.setHSL(hueMap[sysNames[rs]] / 360, 0.25, 0.55),
+            transparent: true, opacity: 0.10, depthWrite: false });
+          var rl = new T.Line(rg, rm);
+          rl.position.set(st.sysPos[rs*3], st.sysPos[rs*3+1], st.sysPos[rs*3+2]);
+          rl.renderOrder = 0;
+          st.galaxy.add(rl);
+          if (!st.orbitRings) st.orbitRings = [];
+          st.orbitRings.push({ line: rl, mat: rm, sys: rs });
+          if (st.sysMats[rs]) st.sysMats[rs].push(rm);
+          if (st.sysBaseOp[rs]) st.sysBaseOp[rs].push(0.10);
+        }
+      }
+    })();
+
+    /* pinned：光环 + 到恒星的亮线 */
+    st.pinIdx = pins;
+    st.pinLines = [];
+    var pinMat = new T.LineBasicMaterial({ color: 0xffd9a8, transparent: true, opacity: 0.35, depthWrite: false });
+    for (var pn = 0; pn < pins.length; pn++){
+      var g = new T.BufferGeometry();
+      g.setAttribute("position", new T.BufferAttribute(new Float32Array(6), 3));
+      var ln = new T.Line(g, pinMat);
+      ln.renderOrder = 1;
+      ln.frustumCulled = false;
+      st.galaxy.add(ln);
+      st.pinLines.push(ln);
+    }
+
+    cap.textContent = "记忆 " + list.length + " 颗 · " + NS + " 个恒星系 · 拖动旋转 · 滚轮缩放";
+  }
+
+  /* ================= 拾取（星 + 天体，指针事件时算一次；cx/cy 为画布内坐标） ================= */
+  function pickStar(st, cx, cy){
+    var r = st.cv.getBoundingClientRect();
+    var nx = cx / r.width * 2 - 1;
+    var ny = -(cy / r.height * 2 - 1);
+    var cam = st.camera, pv = st._v;
+    cam.updateMatrixWorld();
+    var uPx = (r.height * st.renderer.getPixelRatio() / 2) / Math.tan(FOV / 2);
+    var dpr = st.renderer.getPixelRatio();
+
+    var best = null, bestN = 1e9;
+    /* 恒星（光晕大，好点） */
+    var NS = st.starWorld ? st.starWorld.length / 3 : 0;
+    for (var i = 0; i < NS; i++){
+      pv.set(st.starWorld[i*3], st.starWorld[i*3+1], st.starWorld[i*3+2]);
+      var distW = pv.distanceTo(cam.position);          /* 投影前的视线距离 */
+      pv.project(cam);
+      if (pv.z > 1 || pv.z < -1) continue;
+      var dx = pv.x - nx, dy = pv.y - ny;
+      var d2 = dx * dx + dy * dy;
+      var haloPx = st.haloBase[i] * uPx / Math.max(1, distW) / dpr;   /* 屏幕半径 */
+      var thrN = 2 * Math.max(9, haloPx * 0.8) / r.width;
+      var nd = d2 / (thrN * thrN);
+      if (nd < bestN){ bestN = nd; best = { kind: "star", idx: i }; }
+    }
+    /* 天体 */
+    var NB = st.bodyWorld ? st.bodyWorld.length / 3 : 0;
+    for (var j = 0; j < NB; j++){
+      pv.set(st.bodyWorld[j*3], st.bodyWorld[j*3+1], st.bodyWorld[j*3+2]);
+      var distW2 = pv.distanceTo(cam.position);
+      pv.project(cam);
+      if (pv.z > 1 || pv.z < -1) continue;
+      var dx2 = pv.x - nx, dy2 = pv.y - ny;
+      var d22 = dx2 * dx2 + dy2 * dy2;
+      var radPx = st.bodyR[j] * uPx / Math.max(0.001, distW2) / dpr;
+      var thrN2 = 2 * Math.max(8, radPx * 2.2) / r.width;
+      var nd2 = d22 / (thrN2 * thrN2);
+      if (nd2 < bestN){ bestN = nd2; best = { kind: "body", idx: j }; }
+    }
+    if (!best) return null;
+    if (best.kind === "star" && bestN > 1) return null;
+    if (best.kind === "body" && bestN > 1) return null;
+    return best;
+  }
+
+  function setHover(st, h){
+    var oldKey = st.hover ? st.hover.kind + ":" + st.hover.idx : "";
+    var newKey = h ? h.kind + ":" + h.idx : "";
+    if (oldKey === newKey) return;
+    st.hover = h;
+    st.hoverRing.visible = !!h;
+    if (!h){
+      st.cv.style.cursor = "grab";
+      if (st.selected < 0) cap.textContent = "记忆 " + st.bodies.length + " 颗 · 拖动旋转 · 滚轮缩放";
+    } else {
+      st.cv.style.cursor = "pointer";
+      var m = st.bodies[h.idx].m;
+      if (h.kind === "body" && m) cap.textContent = (m.key || "").slice(0, 40);
+      else cap.textContent = (st.sysNames[h.idx] || "").slice(0, 40);
+    }
+  }
+
+  function setSelected(st, i){
+    st.selected = i;
+    if (i >= 0){
+      var m = st.bodies[i].m;
+      cap.textContent = (m.key || "") + " · " + (m.value || "");
+    } else if (!st.hover){
+      cap.textContent = "记忆 " + st.bodies.length + " 颗 · 拖动旋转 · 滚轮缩放";
+    }
+  }
+
+  function setFocus(st, sysIdx){
+    if (sysIdx >= 0 && st.focus === sysIdx) sysIdx = -1;   /* 再点同一颗星：退出聚焦 */
+    if (st.focus === sysIdx) return;
+    st.focus = sysIdx;
+    if (sysIdx >= 0){
+      st.distTarget = FOCUS_DIST;
+      st.yawVel = 0; st.pitchVel = 0;
+      st.pitch = PITCH0;
+      st.resetting = false;
+    } else {
+      st.distTarget = D0;
+    }
+    /* 残影：聚焦时才画 */
+    if (sysIdx >= 0) buildTrails(st, sysIdx); else clearTrails(st);
+
+    /* 其它系变暗 */
+    for (var s = 0; s < st.sysMats.length; s++){
+      var dim = sysIdx >= 0 && s !== sysIdx;
+      var mats = st.sysMats[s];
+      for (var k = 0; k < mats.length; k++){
+        if (!mats[k]) continue;
+        mats[k].transparent = true;
+        mats[k].opacity = dim ? st.sysBaseOp[s][k] * 0.12 : st.sysBaseOp[s][k];
+        mats[k].needsUpdate = true;
+      }
+    }
+  }
+
+  /* ---- 轨道残影：只给当前聚焦的恒星系画，最多 24 个点 ---- */
+  function clearTrails(st){
+    if (!st.trails) return;
+    st.trails.forEach(function(tr){
+      if (tr.line){ st.galaxy.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); }
+    });
+    st.trails = null;
+  }
+
+  function buildTrails(st, si){
+    clearTrails(st);
+    if (si < 0 || !st.bodyWorld) return;
+    var N = 24, list = [];
+    for (var bi = 0; bi < st.bodies.length; bi++){
+      if (st.bodySys[bi] !== si) continue;
+      if (st.bodies[bi].kind === "asteroid") continue;
+      var arr = new Float32Array(N * 3);
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+      var mat = new THREE.LineBasicMaterial({
+        color: st._c.setHSL(hueOf(st.sysNames[si]) / 360, 0.35, 0.65),
+        transparent: true, opacity: 0.30, depthWrite: false });
+      var line = new THREE.Line(geo, mat);
+      line.frustumCulled = false;
+      line.renderOrder = 2;
+      st.galaxy.add(line);
+      list.push({ bi: bi, line: line, arr: arr, n: 0 });
+    }
+    st.trails = list.length ? list : null;
+    st.trailSys = si;
+  }
+
+  function updateTrails(st){
+    if (!st.trails) return;
+    for (var i = 0; i < st.trails.length; i++){
+      var tr = st.trails[i];
+      var bi = tr.bi;
+      /* 头插：整体后移一位，把最新位置写到 0 */
+      var a = tr.arr;
+      for (var k = tr.arr.length - 3; k >= 3; k -= 3) a[k] = a[k-3];
+      a[0] = st.bodyWorld[bi*3];
+      a[1] = st.bodyWorld[bi*3+1];
+      a[2] = st.bodyWorld[bi*3+2];
+      if (tr.n < a.length / 3) tr.n++;
+      tr.line.geometry.setDrawRange(0, tr.n);
+      tr.line.geometry.getAttribute("position").needsUpdate = true;
+      tr.line.geometry.computeBoundingSphere();
+    }
+  }
+
+  /* ================= 交互 ================= */
+  function bindInput(st){
+    st._onPD = onPointerDown; st._onPM = onPointerMove; st._onPU = onPointerUp;
+    st._onLeave = onLeave; st._onWheel = onWheel; st._onDbl = onDbl;
+    st._onCtx = onCtx; st._onKeyDown = onKeyDown; st._onKeyUp = onKeyUp; st._onResize = onResize;
+    st.cv.addEventListener("pointerdown", st._onPD);
+    st.cv.addEventListener("pointermove", st._onPM);
+    st.cv.addEventListener("pointerup", st._onPU);
+    st.cv.addEventListener("pointercancel", st._onPU);
+    st.cv.addEventListener("pointerleave", st._onLeave);
+    st.cv.addEventListener("wheel", st._onWheel, { passive: false });
+    st.cv.addEventListener("dblclick", st._onDbl);
+    st.cv.addEventListener("contextmenu", st._onCtx);
+    window.addEventListener("keydown", st._onKeyDown);
+    window.addEventListener("keyup", st._onKeyUp);
+    window.addEventListener("resize", st._onResize);
+    var x = document.getElementById("skyX");
+    st._onX = function(){ closeSky(); };
+    if (x) x.addEventListener("click", st._onX);
+    st._onBack = function(e){ if (e.target === sky) closeSky(); };
+    sky.addEventListener("click", st._onBack);
+  }
+
+  function ptPos(e){
+    var st = app;
+    var r = st.cv.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function onPointerDown(e){
+    var st = app; if (!st || !st.THREE) return;
+    try { st.cv.setPointerCapture(e.pointerId); } catch(err){}
+    var p = ptPos(e);
+    if (!st.ptrs) st.ptrs = {};
+    st.ptrs[e.pointerId] = p;
+    var n = Object.keys(st.ptrs).length;
+    st.downAt = performance.now(); st.downX = p.x; st.downY = p.y; st.moved = 0;
+    st.dragPt = p;
+    if (n === 1){
+      st.lpFired = false;
+      st.lpTimer = setTimeout(function(){
+        var cur = app;
+        if (!cur || cur.lpFired) return;
+        cur.lpFired = true;
+        if (cur.moved < 8){
+          var h = pickStar(cur, cur.downX, cur.downY);
+          if (h && h.kind === "body") setSelected(cur, h.idx);   /* 长按显示完整记忆 */
+        }
+      }, 500);
+    } else {
+      clearTimeout(st.lpTimer);
+      st.pinchD = pinchDist(st); st.pinchD0 = st.dist;
+      st.dragPt = null;
+    }
+  }
+
+  function onPointerMove(e){
+    var st = app; if (!st || !st.THREE) return;
+    var p = ptPos(e);
+    var tracking = !!(st.ptrs && st.ptrs[e.pointerId]);
+    if (tracking) st.ptrs[e.pointerId] = p;
+    var n = st.ptrs ? Object.keys(st.ptrs).length : 0;
+
+    if (n >= 2){
+      var d = pinchDist(st);
+      if (st.pinchD > 0){
+        st.distTarget = clamp(st.pinchD0 * (st.pinchD / d), distMin(st), distMax(st));
+      }
+      setHover(st, null);
+      return;
+    }
+
+    if (n === 1 && tracking){
+      var dx = p.x - st.dragPt.x, dy = p.y - st.dragPt.y;
+      st.dragPt = p;
+      st.moved += Math.abs(dx) + Math.abs(dy);
+      if (st.lpTimer && st.moved > 8){ clearTimeout(st.lpTimer); st.lpTimer = 0; }
+      var tNow = performance.now();
+      var dtMs = Math.max(8, tNow - (st.lastMoveT || tNow));
+      st.lastMoveT = tNow;
+      st.yaw += dx * 0.0055;
+      st.yawVel = clamp(dx * 0.0055 * 1000 / dtMs, -8, 8);
+      st.pitch = clamp(st.pitch + dy * 0.0028, PITCH_MIN, PITCH_MAX);
+      st.pitchVel = clamp(dy * 0.0028 * 1000 / dtMs, -8, 8);
+      st.resetting = false;
+      setHover(st, null);
+      st.cv.style.cursor = "grabbing";
+    } else {
+      var h = pickStar(st, p.x, p.y);
+      setHover(st, h);
+    }
+  }
+
+  function onPointerUp(e){
+    var st = app; if (!st || !st.THREE) return;
+    if (st.ptrs) delete st.ptrs[e.pointerId];
+    var n = st.ptrs ? Object.keys(st.ptrs).length : 0;
+    if (n === 0){
+      st.ptrs = null;
+      st.pinchD = 0;
+      var wasClick = st.moved < 8 && (performance.now() - st.downAt) < 500 && !st.lpFired;
+      st.dragPt = null;
+      st.cv.style.cursor = st.hover ? "pointer" : "grab";
+      if (wasClick){
+        var p = ptPos(e);
+        var h = pickStar(st, p.x, p.y);
+        if (h){
+          if (h.kind === "star") setFocus(st, h.idx);      /* 点恒星：聚焦/退出聚焦 */
+          else setSelected(st, h.idx);                      /* 点天体：固定选中 */
+        } else if (st.selected >= 0){
+          setSelected(st, -1);
+        }
+      }
+    } else if (n === 1){
+      var rest = st.ptrs[Object.keys(st.ptrs)[0]];
+      st.dragPt = rest;
+      st.pinchD = 0;
+    }
+  }
+
+  function onLeave(){
+    var st = app; if (!st) return;
+    if (!st.dragPt){ setHover(st, null); }
+  }
+
+  function distMin(st){ return st.focus >= 0 ? FOCUS_DMIN : D0 / ZOOM_MAX; }
+  function distMax(st){ return st.focus >= 0 ? FOCUS_DMAX : D0 / ZOOM_MIN; }
+
+  function onWheel(e){
+    var st = app; if (!st) return;
+    e.preventDefault();
+    st.distTarget = clamp(st.distTarget * (e.deltaY > 0 ? 1.1 : 0.91), distMin(st), distMax(st));
+    st.resetting = false;
+  }
+
+  function onDbl(e){
+    var st = app; if (!st) return;
+    e.preventDefault();
+    st.resetting = true;
+    setFocus(st, -1);
+    st.distTarget = D0;
+    st.pitchVel = 0; st.yawVel = 0;
+  }
+
+  function onCtx(e){
+    var st = app; if (!st) return;
+    e.preventDefault();
+    if (st.focus >= 0) setFocus(st, -1);   /* 右键空白：退出聚焦 */
+  }
+
+  function onKeyDown(e){
+    var st = app; if (!st) return;
+    if (e.key === "ArrowLeft")  st.kRot = -0.8;
+    else if (e.key === "ArrowRight") st.kRot = 0.8;
+    else if (e.key === "+" || e.key === "=") st.distTarget = clamp(st.distTarget * 0.88, distMin(st), distMax(st));
+    else if (e.key === "-" || e.key === "_") st.distTarget = clamp(st.distTarget * 1.14, distMin(st), distMax(st));
+    else if (e.key === "Escape") closeSky();
+  }
+  function onKeyUp(e){
+    var st = app; if (!st) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") st.kRot = 0;
+  }
+
+  function onResize(){
+    var st = app; if (!st || !st.renderer) return;
+    var w = st.cv.clientWidth || 1, h = st.cv.clientHeight || 1;
+    st.renderer.setSize(w, h, false);
+    st.camera.aspect = w / h;
+    st.camera.updateProjectionMatrix();
+  }
+
+  function pinchDist(st){
+    var ks = Object.keys(st.ptrs), a = st.ptrs[ks[0]], b = st.ptrs[ks[1]];
+    var dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function clamp(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
+
+  /* ================= 渲染循环 ================= */
+  function startLoop(st){
+    var T = st.THREE;
+    var first = true;
+    var tmpQ = new T.Quaternion(), tmpS = new T.Vector3(), tmpV = new T.Vector3();
+    var tmpM = new T.Matrix4();
+    var bPos = new T.Vector3();
+
+    function tick(now){
+      if (!app || app !== st) return;
+      var dt = first ? 16 : Math.min(50, now - st.last);
+      first = false; st.last = now;
+      var e = (now - (st.t0 || now)) / 1000;
+      if (!st.t0) st.t0 = now;
+
+      /* FPS 采样：连续 2 秒低于 30 → 降级（关银河粒子与光晕） */
+      var inst = dt > 0 ? 1000 / dt : 60;
+      st.emaFps = st.emaFps < 0 ? inst : st.emaFps * 0.9 + inst * 0.1;
+      if (st.emaFps >= 26){ st.lastGood = now; st.degraded = false; }
+      else if (!st.degraded && now - st.lastGood > 3000){
+        /* 降级只减粒子密度，不把银河整个藏掉 */
+        st.degraded = true;
+      }
+      if (st.arms){
+        st.arms.visible = true;
+        if (st.arms.material) st.arms.material.opacity = st.degraded ? 0.45 : 1.0;
+      }
+
+      /* 整片星空缓慢自转 + 拖拽 yaw + 惯性 */
+      st.galRot += (st.degraded ? 0 : GAL_ROT) * dt / 1000;
+      var gy = st.yaw + st.galRot;
+      if (st.resetting){
+        st.yaw = dampAngle(st.yaw, 0, dt);
+        st.pitch += (PITCH0 - st.pitch) * Math.min(1, dt * 0.004);
+        if (Math.abs(angleDiff(st.yaw, 0)) < 0.01 && Math.abs(st.pitch - PITCH0) < 0.002) st.resetting = false;
+      } else {
+        st.yaw += st.kRot * dt / 1000;
+        st.yawVel *= Math.exp(-dt * 0.0022);
+        st.yaw += st.yawVel * dt / 1000;
+        st.pitch += st.pitchVel * dt / 1000;
+        st.pitch = clamp(st.pitch, PITCH_MIN, PITCH_MAX);
+        st.pitchVel *= Math.exp(-dt * 0.0022);
+      }
+      st.galaxy.rotation.y = gy;
+      var gyc = Math.cos(gy), gys = Math.sin(gy);
+      st.dist += (st.distTarget - st.dist) * Math.min(1, dt * 0.008);
+      if (Math.abs(st.dist - st.distTarget) < 0.001) st.dist = st.distTarget;
+
+      var NS = st.sysNames ? st.sysNames.length : 0, NB = st.bodies ? st.bodies.length : 0;
+
+      /* 系统自转 + 恒星世界坐标 + 呼吸 */
+      for (var s = 0; s < NS; s++){
+        var sr = st.sysSpin[s] * e;
+        st.sysRot[s] = sr;
+        var srx = st.sysPos[s*3], srz = st.sysPos[s*3+2];
+        st.starWorld[s*3]   = srx * gyc + srz * gys;
+        st.starWorld[s*3+1] = 0;
+        st.starWorld[s*3+2] = -srx * gys + srz * gyc;
+        var br = 1 + 0.05 * Math.sin(6.2832 * e / 3 + st.breathPhase[s]);
+        var hb = st.haloBase[s] * br;
+        if (st.hover && st.hover.kind === "star" && st.hover.idx === s) hb *= 1.3;   /* 悬停放大 1.3× */
+        st.starHalo[s].scale.set(hb, hb, 1);
+        var cb = st.coreBase[s] * br;
+        st.starCore[s].scale.set(cb, cb, 1);
+      }
+
+      /* 行星/卫星位置（系统空间），零分配 */
+      var srx2, srz2, c, sn, lx, lz, wx, wz;
+      for (var bi = 0; bi < NB; bi++){
+        var th = st.bodyTheta0[bi] + st.bodyOmega[bi] * e;
+        if (st.bodies[bi].kind === "moon"){
+          /* 卫星绕父行星 */
+          var mth = st.moonTheta0[bi] + st.moonOmega[bi] * e;
+          var parent = st.moonParent[bi];
+          if (parent >= 0){
+            st.planetLocal[bi*3]   = st.planetLocal[parent*3]   + Math.cos(mth) * st.moonR[bi];
+            st.planetLocal[bi*3+1] = st.planetLocal[parent*3+1] + st.moonY[bi];
+            st.planetLocal[bi*3+2] = st.planetLocal[parent*3+2] + Math.sin(mth) * st.moonR[bi];
+          } else {   /* 本系没有行星：绕恒星公转 */
+            st.planetLocal[bi*3]   = Math.cos(mth) * st.moonR[bi];
+            st.planetLocal[bi*3+1] = st.moonY[bi];
+            st.planetLocal[bi*3+2] = Math.sin(mth) * st.moonR[bi];
+          }
+        } else {
+          lx = Math.cos(th) * st.bodyOrbitR[bi];
+          lz = Math.sin(th) * st.bodyOrbitR[bi];
+          st.planetLocal[bi*3]   = lx;
+          st.planetLocal[bi*3+1] = st.bodyY[bi];
+          st.planetLocal[bi*3+2] = lz;
+        }
+        /* 系统自转 → 世界（银河旋转） */
+        var si = st.bodySys[bi];
+        var sr3 = st.sysRot[si];
+        c = Math.cos(sr3); sn = Math.sin(sr3);
+        var plx = st.planetLocal[bi*3], ply = st.planetLocal[bi*3+1], plz = st.planetLocal[bi*3+2];
+        lx = plx * c + plz * sn;
+        lz = -plx * sn + plz * c;
+        var sx = st.sysPos[si*3], sz = st.sysPos[si*3+2];
+        wx = (sx + lx) * gyc + (sz + lz) * gys;
+        wz = -(sx + lx) * gys + (sz + lz) * gyc;
+        st.bodyWorld[bi*3]   = wx;
+        st.bodyWorld[bi*3+1] = ply;
+        st.bodyWorld[bi*3+2] = wz;
+        /* 实例矩阵（mesh 挂在 galaxy 下，随 gy 旋转 → 填银河空间坐标） */
+        var scaleF = (st.hover && st.hover.kind === "body" && st.hover.idx === bi) ? 1.35 : 1;
+        /* 屏幕最小尺寸：远看也不至于成为几个像素 */
+        var wpp = (2 * st.dist * Math.tan(FOV / 2)) / Math.max(1, (st.renderer && st.renderer.domElement ? st.renderer.domElement.clientHeight : 420));
+        var minR = 2.6 * wpp;
+        if (st.bodyR[bi] < minR) scaleF *= Math.min(2.0, minR / Math.max(0.001, st.bodyR[bi]));
+        var rr3 = st.bodyR[bi] * scaleF;
+        tmpS.set(rr3, rr3, rr3);
+        tmpV.set(sx + lx, ply, sz + lz);
+        tmpM.compose(tmpV, tmpQ, tmpS);
+        var mesh = st.sysMats[si].__mesh[st.bodies[bi].kind === "asteroid" ? 1 : 0];
+        var localIdx = st.bodies[bi].kind === "asteroid" ? st.__amIdx[bi] : st.__pmIdx[bi];
+        mesh.setMatrixAt(localIdx, tmpM);
+        mesh.instanceMatrix.needsUpdate = true;
+
+        /* 发光壳跟着走，放大 1.9 倍 */
+        var gm = st.glowMeshes && st.glowMeshes[si];
+        if (gm && st.bodies[bi].kind !== "asteroid"){
+          var gs = rr3 * 1.9;
+          tmpS.set(gs, gs, gs);
+          tmpM.compose(tmpV, tmpQ, tmpS);
+          gm.setMatrixAt(localIdx, tmpM);
+          gm.instanceMatrix.needsUpdate = true;
+        }
+      }
+
+      /* 恒星聚焦点跟随 */
+      if (st.focus >= 0){
+        st.focusPos.set(st.starWorld[st.focus*3], st.starWorld[st.focus*3+1], st.starWorld[st.focus*3+2]);
+      }
+
+      /* 选中/悬停环 */
+      if (st.selected >= 0){
+        var i3 = st.selected;
+        st.ringSpr.visible = true;
+        st.ringSpr.position.set(st.bodyWorld[i3*3], st.bodyWorld[i3*3+1], st.bodyWorld[i3*3+2]);
+        var rs = st.bodyR[i3] * 3.6;
+        st.ringSpr.scale.set(rs, rs, 1);
+      } else st.ringSpr.visible = false;
+      if (st.hover){
+        var hk = st.hover.kind, hi = st.hover.idx;
+        if (hk === "body"){
+          st.hoverRing.position.set(st.bodyWorld[hi*3], st.bodyWorld[hi*3+1], st.bodyWorld[hi*3+2]);
+          var hs = st.bodyR[hi] * 2.8;
+          st.hoverRing.scale.set(hs, hs, 1);
+        } else if (hk === "star"){
+          st.hoverRing.position.set(st.starWorld[hi*3], st.starWorld[hi*3+1], st.starWorld[hi*3+2]);
+          var hsr = st.haloBase[hi] * 0.9;
+          st.hoverRing.scale.set(hsr, hsr, 1);
+        }
+      }
+
+      /* pinned 亮线：星 → 天体（线在银河空间，随 galaxy 整体旋转） */
+      for (var pi = 0; st.pinIdx && pi < st.pinIdx.length; pi++){
+        var bi2 = st.pinIdx[pi];
+        var si2 = st.bodySys[bi2];
+        var ln = st.pinLines[pi];
+        if (!ln) continue;
+        var sr2 = st.sysRot[si2];
+        var c2 = Math.cos(sr2), s2n = Math.sin(sr2);
+        var plx = st.planetLocal[bi2*3], ply2 = st.planetLocal[bi2*3+1], plz = st.planetLocal[bi2*3+2];
+        var posAttr = ln.geometry.getAttribute("position");
+        posAttr.setXYZ(0, st.sysPos[si2*3], 0, st.sysPos[si2*3+2]);
+        posAttr.setXYZ(1, st.sysPos[si2*3] + plx * c2 + plz * s2n, ply2,
+                          st.sysPos[si2*3+2] - plx * s2n + plz * c2);
+        posAttr.needsUpdate = true;
+      }
+
+      if (st.trails) updateTrails(st);
+      placeCamera(st);
+      st.renderer.render(st.scene, st.camera);
+      st.raf = requestAnimationFrame(tick);
+    }
+    st.raf = requestAnimationFrame(tick);
+  }
+
+  function dampAngle(cur, target, dt){
+    var d = angleDiff(cur, target);
+    return cur - d * Math.min(1, dt * 0.003);
+  }
+  function angleDiff(a, b){
+    var d = (a - b) % 6.2832;
+    if (d > 3.1416) d -= 6.2832;
+    if (d < -3.1416) d += 6.2832;
+    return d;
+  }
+
+  /* ================= 关闭：清监听/定时器，释放 GPU 与 context ================= */
+  function closeSky(){
+    var st = app;
+    if (st){
+      if (st.raf) cancelAnimationFrame(st.raf);
+      clearTimeout(st.lpTimer);
+      var cv = st.cv;
+      cv.removeEventListener("pointerdown", st._onPD);
+      cv.removeEventListener("pointermove", st._onPM);
+      cv.removeEventListener("pointerup", st._onPU);
+      cv.removeEventListener("pointercancel", st._onPU);
+      cv.removeEventListener("pointerleave", st._onLeave);
+      cv.removeEventListener("wheel", st._onWheel);
+      cv.removeEventListener("dblclick", st._onDbl);
+      cv.removeEventListener("contextmenu", st._onCtx);
+      window.removeEventListener("keydown", st._onKeyDown);
+      window.removeEventListener("keyup", st._onKeyUp);
+      window.removeEventListener("resize", st._onResize);
+      var x = document.getElementById("skyX");
+      if (x) x.removeEventListener("click", st._onX);
+      sky.removeEventListener("click", st._onBack);
+      if (st.scene) disposeScene(st);
+      if (st.renderer){
+        st.renderer.dispose();
+        try { st.renderer.forceContextLoss(); } catch(e){}
+      }
+      /* 画布直接移除，context 随节点被回收，下一次打开全新画布 */
+      if (cv.parentNode) cv.parentNode.removeChild(cv);
+      panel.style.background = st.panelBg;
+      app = null;
+    }
+    sky.classList.remove("on");
+  }
+
+  function disposeScene(st){
+    st.scene.traverse(function(o){
+      if (o.geometry) o.geometry.dispose();
+      if (o.material){
+        var ms = Array.isArray(o.material) ? o.material : [o.material];
+        for (var i = 0; i < ms.length; i++){
+          if (ms[i].map) ms[i].map.dispose();
+          ms[i].dispose();
+        }
+      }
+    });
+  }
+
+  /* ---- 接线：ringcard 点击打开 ---- */
+  var rc = document.querySelector(".ringcard");
+  if (rc) rc.addEventListener("click", openSky);
+
+  window.__skyFocus = function(si){ if (app) setFocus(app, si); return app ? app.trails ? app.trails.length : 0 : -1; };
+  window.openSky = openSky;
+  window.closeSky = closeSky;
+
+  /* ---- 调试观察口 ---- */
+  window.__sky3d = {
+    get app(){ return app; },
+    get fps(){ return app ? Math.round(app.emaFps * 10) / 10 : null; },
+    get degraded(){ return app ? app.degraded : null; },
+    get count(){ return app && app.bodies ? app.bodies.length : null; },
+    get systems(){ return app ? app.sysNames.length : null; },
+    get focus(){ return app ? app.focus : null; },
+    get yaw(){ return app ? app.yaw : null; },
+    get zoom(){ return app ? (D0 / app.dist) : null; },
+    get pitch(){ return app ? app.pitch : null; },
+    get dist(){ return app ? app.dist : null; },
+    get distTarget(){ return app ? app.distTarget : null; },
+    get selected(){ return app ? app.selected : null; },
+    get armsVisible(){ return app ? app.arms.visible : null; },
+    get bodyWorld(){ return app ? Array.prototype.slice.call(app.bodyWorld) : null; }
+  };
+})();
+
+
+// ---- 最近删除 ----
+async function loadTrash(){
+  const box = $("trashList");
+  if (!box) return;
+  box.textContent = "读取中……";
+  try {
+    const d = await api("/api/msg/deleted?u=" + encodeURIComponent(S.user_id));
+    const items = (d && d.items) || [];
+    if (!items.length){ box.textContent = "没有删掉的消息"; return; }
+    box.innerHTML = "";
+    items.forEach(it => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)";
+      const who = it.role === "user" ? "我" : "她";
+      const txt = document.createElement("span");
+      txt.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+      txt.textContent = who + "：" + (it.content || "").replace(/<msg>/g, " ").slice(0, 30);
+      const btn = document.createElement("button");
+      btn.textContent = "恢复";
+      btn.style.cssText = "background:rgba(255,185,138,.16);border:1px solid rgba(255,185,138,.3);color:#ffcf9e;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:12px";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        await api("/api/msg/restore", { u: S.user_id, id: it.id }, "POST");
+        row.remove();
+      });
+      row.appendChild(txt); row.appendChild(btn);
+      box.appendChild(row);
+    });
+  } catch(e){ box.textContent = "读取失败"; }
+}
+const _tb = $("trashBtn");
+if (_tb) _tb.addEventListener("click", loadTrash);
+
+
+/* ================= 图片 ================= */
+(function(){
+  let pendingImg = null;
+  const prev = document.getElementById("imgPrev");
+  const file = document.getElementById("imgFile");
+  const pick = document.getElementById("pickImg");
+
+  if (pick && file){
+    pick.addEventListener("click", () => file.click());
+    file.addEventListener("change", async () => {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      file.value = "";
+      try {
+        const dataUrl = await compress(f);
+        prev.innerHTML = "<img src='" + dataUrl + "'>";
+        prev.classList.add("on");
+        const r = await fetch("/api/upload", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ u: S.user_id, data: dataUrl })
+        });
+        const d = await r.json();
+        if (d.ok) pendingImg = d.url;
+        else { prev.innerHTML = "<span style='color:#ff9a8a;font-size:12px'>" + (d.error||"上传失败") + "</span>"; }
+      } catch(e){
+        prev.innerHTML = "<span style='color:#ff9a8a;font-size:12px'>图片处理失败</span>";
+      }
+    });
+  }
+
+  function compress(f){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        let w = img.width, h = img.height;
+        if (w > h && w > max){ h = Math.round(h * max / w); w = max; }
+        else if (h >= w && h > max){ w = Math.round(w * max / h); h = max; }
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = reject;
+      const r = new FileReader();
+      r.onload = () => img.src = r.result;
+      r.onerror = reject;
+      r.readAsDataURL(f);
+    });
+  }
+
+  window.__takeImage = function(){
+    const u = pendingImg;
+    pendingImg = null;
+    prev.classList.remove("on");
+    prev.innerHTML = "";
+    return u;
+  };
+})();
+
+</script>
 </body>
 </html>

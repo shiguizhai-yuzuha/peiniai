@@ -23,7 +23,7 @@ from webui.auth import do_change_password, do_guest, do_keep, do_login, do_logou
 from webui.background import do_reset_bg, do_set_bg
 from webui.chat import clear_chat, respond
 from webui.export import do_export_all, do_export_book, do_export_refresh, do_export_txt
-from webui.memory import MEM_ORDER, do_mem_action, do_pin, do_preview_memory, do_save_memory_mode, do_save_prefs, open_profile
+from webui.memory import MEM_ORDER, do_mem_action, do_pin, do_preview_memory, do_save_memory_mode, do_save_prefs, open_profile, do_set_mode
 from webui.persona import do_create_persona, do_delete_persona, switch_persona, toggle_create
 from webui.relation import _refresh_stage_wrap, do_tell, hide_tell_confirm, open_milestones, show_tell_confirm
 from webui.render import _load_template, get_bg_style, get_static_css, render_relationship
@@ -223,6 +223,22 @@ with gr.Blocks(title="陪你AI", theme=gr.themes.Soft(), css=CSS) as demo:
             pref_btn = gr.Button("保存设置")
             pref_msg = gr.Markdown("")
 
+        with gr.Accordion("关系（恋爱 / 陪伴）", open=False):
+            gr.HTML(
+                '<div style="font-size:12.5px;line-height:1.9;color:#646a73;'
+                'margin-bottom:8px">'
+                '她记的东西一样，说话的方式不一样。<br>'
+                '<b>恋爱</b>：有好感度，会推进关系。<br>'
+                '<b>陪伴</b>：不谈关系，只记得你。'
+                '</div>'
+            )
+            mode_radio = gr.Radio(
+                choices=[("恋爱", "romance"), ("陪伴", "companion")],
+                value="romance", label="关系模式",
+            )
+            mode_btn = gr.Button("切换关系")
+            mode_msg = gr.Markdown("")
+
         with gr.Accordion("她的记性（本地测试用）", open=False):
             gr.Markdown(
                 "她怎么「记起」以前的事。\n\n"
@@ -416,6 +432,13 @@ with gr.Blocks(title="陪你AI", theme=gr.themes.Soft(), css=CSS) as demo:
         do_save_prefs,
         [user_id_state, style_radio, quiet_on, quiet_start, quiet_end],
         [pref_msg],
+    )
+
+    # 关系模式：恋爱 / 陪伴
+    mode_btn.click(
+        do_set_mode,
+        [user_id_state, mode_radio, persona_state],
+        [mode_msg],
     )
 
     # 记忆管理：锁定 / 取消锁定 / 忘掉（所有分组一起处理）

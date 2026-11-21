@@ -1,15 +1,13 @@
-"""陪伴 / 恋爱 模式。
+"""陪伴 / 恋爱 模式（按角色区分）。
 
-这一层只做一件事：告诉调用方"这个人现在走哪条模式"。
+规则（优先级从高到低）
+  ①  有人手动切过       user_modes 表里那一行说了算
+  ②  角色默认           COMPANION_PERSONAS 里的角色默认陪伴，其余默认恋爱
+  ③  账号白名单         （兼容旧逻辑，按 username / nickname）
+  ④  全局默认           DEFAULT_MODE（romance）
 
-规则
-  默认           romance（维持现有行为，零风险）
-  白名单用户      companion（目前只有「大肥鱼」）
-  数据库 users.mode 字段优先级最高（后面做切换入口时用）
-
-为什么放在 core 而不是 modules：
-  它被 chat / stage / render 都要用，属于内核判定；
-  真正的恋爱逻辑（好感度推进、表白、吃醋）才应该被抽到 modules/romance。
+为什么按角色：
+  「大肥鱼」是角色，不是账号。同一个账号换个角色，关系不一样是正常的。
 """
 
 from __future__ import annotations
@@ -22,11 +20,15 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 DEFAULT_MODE = os.getenv("PEINI_MODE", "romance").strip().lower()
 
-# 这些人默认走陪伴模式，不看数据库字段
+# 这些角色默认走「陪伴」：不谈关系，只陪着
+COMPANION_PERSONAS = {"大肥鱼", "dafeiyu", "da_fei_yu"}
+
+# 兼容：这些账号名/昵称默认走陪伴（旧的白名单）
 COMPANION_USERS = {"大肥鱼", "dafeiyu", "da_fei_yu"}
 
 _lock = threading.Lock()
-_cache: dict[str, str] = {}
+_cache: dict[tuple[str, str], str] = {}
+_ready = False
 
 
 def normalize(mode: str | None) -> str:
@@ -34,68 +36,127 @@ def normalize(mode: str | None) -> str:
     return m if m in ("companion", "romance") else DEFAULT_MODE
 
 
-def _query(user_id: str) -> tuple[str, str]:
-    """返回 (username, mode字段)。查不到就返回空。"""
+def _ensure_table(conn) -> None:
+    global _ready
+    if _ready:
+        return
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_modes ("
+        " user_id TEXT NOT NULL,"
+        " persona TEXT NOT NULL,"
+        " mode TEXT NOT NULL,"
+        " updated_at TEXT DEFAULT CURRENT_TIMESTAMP,"
+        " PRIMARY KEY (user_id, persona))"
+    )
+    conn.commit()
+    _ready = True
+
+
+def _conn():
+    conn = sqlite3.connect(DB_PATH, timeout=5)
+    _ensure_table(conn)
+    return conn
+
+
+def _query_user(user_id: str) -> tuple[str, str]:
     try:
         with _lock:
             conn = sqlite3.connect(DB_PATH, timeout=5)
             try:
                 row = conn.execute(
-                    "select username, coalesce(mode, '') from users where user_id=?",
+                    "select coalesce(username,''), coalesce(nickname,'') from users where user_id=?",
                     (user_id,),
                 ).fetchone()
             finally:
                 conn.close()
         if not row:
             return "", ""
-        return (row[0] or ""), (row[1] or "")
-    except Exception as e:  # 数据库不在、字段没加，都不应该让聊天挂掉
-        print(f"[模式] 读取失败，按默认处理：{e}", flush=True)
+        return row[0], row[1]
+    except Exception as e:
+        print(f"[模式] 读用户失败，按默认处理：{e}", flush=True)
         return "", ""
 
 
-def get_mode(user_id: str) -> str:
+def _query_override(user_id: str, persona: str) -> str:
+    try:
+        with _lock:
+            conn = _conn()
+            try:
+                row = conn.execute(
+                    "select mode from user_modes where user_id=? and persona=?",
+                    (user_id, persona or ""),
+                ).fetchone()
+                if not row:
+                    row = conn.execute(
+                        "select mode from user_modes where user_id=? and persona='*'",
+                        (user_id,),
+                    ).fetchone()
+            finally:
+                conn.close()
+        if row and row[0] in ("companion", "romance"):
+            return row[0]
+    except Exception as e:
+        print(f"[模式] 读覆盖失败，按默认处理：{e}", flush=True)
+    return ""
+
+
+def get_mode(user_id: str, persona: str = "") -> str:
     """当前模式：romance / companion。"""
-    if not user_id:
-        return DEFAULT_MODE
+    key = (user_id or "", persona or "")
+    if key in _cache:
+        return _cache[key]
 
-    cached = _cache.get(user_id)
-    if cached:
-        return cached
+    mode = ""
 
-    username, db_mode = _query(user_id)
+    # ① 手动切过
+    if user_id:
+        mode = _query_override(user_id, persona)
 
-    if username and username in COMPANION_USERS:
+    # ② 角色默认
+    if not mode and persona and persona in COMPANION_PERSONAS:
         mode = "companion"
-    elif db_mode in ("companion", "romance"):
-        mode = db_mode
-    else:
+
+    # ③ 账号白名单（兼容旧逻辑）
+    if not mode and user_id:
+        username, nickname = _query_user(user_id)
+        if (username and username in COMPANION_USERS) or (nickname and nickname in COMPANION_USERS):
+            mode = "companion"
+
+    # ④ 全局默认
+    if not mode:
         mode = DEFAULT_MODE
 
-    _cache[user_id] = mode
+    _cache[key] = mode
     return mode
 
 
-def is_companion(user_id: str) -> bool:
-    return get_mode(user_id) == "companion"
+def is_companion(user_id: str, persona: str = "") -> bool:
+    return get_mode(user_id, persona) == "companion"
 
 
-def is_romance(user_id: str) -> bool:
-    return get_mode(user_id) == "romance"
+def is_romance(user_id: str, persona: str = "") -> bool:
+    return get_mode(user_id, persona) == "romance"
 
 
-def set_mode(user_id: str, mode: str) -> None:
-    """切换模式（切换入口以后再加，这里先给内核用）。"""
+def set_mode(user_id: str, mode: str, persona: str = "") -> None:
+    """记下这一次切换（persona 传空表示对这个人全部角色生效）。"""
     m = normalize(mode)
     try:
         with _lock:
-            conn = sqlite3.connect(DB_PATH, timeout=5)
+            conn = _conn()
             try:
-                conn.execute("update users set mode=? where user_id=?", (m, user_id))
+                conn.execute(
+                    "insert into user_modes(user_id, persona, mode, updated_at) "
+                    "values(?,?,?,CURRENT_TIMESTAMP) "
+                    "on conflict(user_id, persona) do update set mode=excluded.mode, "
+                    "updated_at=CURRENT_TIMESTAMP",
+                    (user_id, persona or "", m),
+                )
                 conn.commit()
             finally:
                 conn.close()
-        _cache[user_id] = m
+        for k in [k for k in _cache if k[0] == (user_id or "")]:
+            _cache.pop(k, None)
     except Exception as e:
         print(f"[模式] 写入失败：{e}", flush=True)
 

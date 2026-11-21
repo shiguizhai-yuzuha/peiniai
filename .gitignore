@@ -50,3 +50,10 @@ _bgm/
 *.swp
 Thumbs.db
 desktop.ini
+
+# 上传的用户图片（含真实内容，不进仓库）
+static/uploads/
+
+# 运行日志
+_run.err
+_run.log

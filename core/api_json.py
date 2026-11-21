@@ -209,6 +209,83 @@ def register(app):
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
+    # ===== Web Push =====
+    @app.get("/api/push/key")
+    def _push_key():
+        try:
+            from core import push as _push
+            return {"ok": True, "key": _push.public_key()}
+        except Exception as e:
+            return {"ok": False, "key": "", "error": str(e)}
+
+    @app.post("/api/push/subscribe")
+    async def _push_sub(request: Request):
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            sub = d.get("sub") or {}
+            from core import push as _push
+            ok = _push.save_sub(u, sub)
+            return {"ok": bool(ok)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.post("/api/push/test")
+    async def _push_test(request: Request):
+        """给自己推一条测试（管理员）。"""
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            if not u:
+                return {"ok": False, "error": "参数不对"}
+            from core import push as _push
+            n = _push.send_to_user(u, "陪你", "她：我在。点开看看？", "/app")
+            return {"ok": n > 0, "sent": n}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    # ===== 主动消息偏好 =====
+    @app.get("/api/proactive/prefs")
+    def _pro_get(u: str = ""):
+        try:
+            from core import proactive as _pro
+            p = _pro.prefs_of(u)
+            return {"ok": True, **p, "mode": p.get("mode", "model")}
+        except Exception as e:
+            return {"ok": False, "error": str(e),
+                    "enabled": True, "window": "any", "freq": 1}
+
+    @app.post("/api/proactive/prefs")
+    async def _pro_set(request: Request):
+        try:
+            d = await request.json()
+            u = (d.get("u") or "").strip()
+            if not u:
+                return {"ok": False, "error": "参数不对"}
+            enabled = 1 if d.get("enabled") else 0
+            window = (d.get("window") or "any").strip()
+            if window not in ("any", "morning", "night"):
+                window = "any"
+            try:
+                freq = int(d.get("freq") or 1)
+            except Exception:
+                freq = 1
+            if freq not in (1, 3, 7):
+                freq = 1
+            pmode = (d.get("mode") or "model").strip()
+            if pmode not in ("model", "rule"):
+                pmode = "model"
+            conn = repo.get_conn()
+            conn.execute(
+                "UPDATE users SET proactive_enabled=?, proactive_window=?, proactive_freq=?, "
+                "proactive_mode=? WHERE user_id=?", (enabled, window, freq, pmode, u))
+            conn.commit()
+            conn.close()
+            return {"ok": True, "enabled": bool(enabled), "window": window,
+                    "freq": freq, "mode": pmode}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     @app.post("/api/upload")
     async def _upload(request: Request):
         """收一张图：base64 JSON → static/uploads/<uid>/<uuid>.<ext>"""

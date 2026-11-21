@@ -57,6 +57,21 @@ def _create_app_with_ipblock(*args, **kwargs):
                 return JSONResponse({"ok": False}, status_code=404)
             return FileResponse(full, headers={"Cache-Control": "public, max-age=86400"})
 
+        def _root_static(name: str, media: str = None):
+            from fastapi.responses import FileResponse, JSONResponse
+            import os as _os
+            base = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "static")
+            full = _os.path.join(base, name)
+            if not _os.path.isfile(full):
+                return JSONResponse({"ok": False}, status_code=404)
+            return FileResponse(full, media_type=media,
+                                headers={"Cache-Control": "no-cache",
+                                         "Service-Worker-Allowed": "/"})
+
+        _app.add_api_route("/sw.js", lambda: _root_static("sw.js", "application/javascript"), methods=["GET"])
+        _app.add_api_route("/manifest.webmanifest",
+                           lambda: _root_static("app/manifest.webmanifest", "application/manifest+json"),
+                           methods=["GET"])
         _app.add_api_route("/uploads/{path:path}", _upload_file, methods=["GET"])
         _app.add_api_route("/app", _app_page, methods=["GET"])
         _app.add_api_route("/ds", _ds_page, methods=["GET"])

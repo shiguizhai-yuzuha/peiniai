@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0b0f14">
 <title>陪你AI</title>
 <style>
 :root{
@@ -681,6 +683,73 @@ body::before{content:""; position:fixed; inset:0 0 auto 0; height:46vh; pointer-
 #imgPrev img{width:64px; height:64px; object-fit:cover; border-radius:8px;
   border:1px solid rgba(239,233,225,.18)}
 .bub img.pic{max-width:260px; border-radius:10px; display:block; margin-bottom:6px}
+
+/* ================= 手机端 ================= */
+@media (max-width: 640px){
+  /* 顶部工具条：一行横向滚动，不许竖排 */
+  #topbar, .topbar{ flex-wrap: nowrap !important; overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch; padding-bottom: 4px }
+  #topbar button, .topbar button, .toolbtn{
+    flex: 0 0 auto !important; white-space: nowrap !important;
+    writing-mode: horizontal-tb !important; word-break: keep-all !important;
+    font-size: 12px !important; padding: 5px 10px !important }
+
+  /* 左上角"和 X 说话"改成一行小字，不竖排 */
+  #whoName, .who, #who{ writing-mode: horizontal-tb !important;
+    max-width: 56vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+  /* 角色条：横向滑动，别换行 */
+  #rail{ flex-wrap: nowrap !important; overflow-x: auto !important;
+    padding: 8px 6px !important; gap: 6px !important }
+  #rail .pav{ flex: 0 0 auto !important; width: 46px !important; height: 46px !important;
+    font-size: 12px !important }
+
+  /* 聊天区占满，侧栏隐藏 */
+  #side{ display: none !important }
+  #stream{ padding: 10px 10px 4px !important }
+  .bub{ max-width: 86% !important; font-size: 14.5px !important }
+
+  /* 底部：场景按钮一行，输入框贴底 */
+  #mobileOps{ display: flex !important; gap: 6px; overflow-x: auto; padding: 6px 10px !important }
+  #mobileOps .scenebtn{ flex: 0 0 auto; font-size: 12px; padding: 5px 10px !important }
+  #composer{ padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important }
+  #composer #inp{ font-size: 15px !important }
+  #pickImg, #send{ width: 44px !important; height: 44px !important; font-size: 16px !important }
+
+  /* 设置面板铺满 */
+  #set .sbox{ width: 94vw !important; max-height: 86vh; overflow-y: auto }
+
+  /* 星图弹层铺满 */
+  #sky .panel{ width: 96vw !important; max-height: 88vh }
+  #sky canvas{ height: 58vh !important }
+}
+
+
+/* 手机端：顶部条一行 */
+@media (max-width: 640px){
+  #topbar{ display:flex; align-items:center; gap:6px; flex-wrap:nowrap; overflow-x:auto }
+  #topbar .who{ flex:0 0 auto; white-space:nowrap; writing-mode:horizontal-tb;
+    font-size:12px; max-width:44vw; overflow:hidden; text-overflow:ellipsis }
+  #topbar button{ flex:0 0 auto; white-space:nowrap; font-size:12px; padding:5px 9px }
+}
+
+/* ===== 手机端第二遍：收紧顶部，底部一行 ===== */
+@media (max-width: 640px){
+  #rail{ padding: 6px 8px !important; gap: 5px !important; height: auto !important }
+  #rail .pav{ width: 40px !important; height: 40px !important; font-size: 11.5px !important }
+
+  #topbar{ padding: 4px 8px 6px !important; gap: 4px !important }
+  #topbar .who{ font-size: 11.5px !important; max-width: 30vw !important }
+  #topbar button{ font-size: 11.5px !important; padding: 4px 8px !important;
+    border-radius: 8px !important }
+
+  #mobileOps{ display: grid !important; grid-template-columns: repeat(4, 1fr) !important;
+    gap: 5px !important; padding: 5px 8px !important; overflow: visible !important }
+  #mobileOps .scenebtn{ width: auto !important; text-align: center !important;
+    font-size: 11.5px !important; padding: 6px 2px !important }
+  #mobileOps .scenebtn.sea, #mobileOps .scenebtn.rose{ display: none !important }
+}
+
 </style>
 </head>
 <body>
@@ -743,6 +812,35 @@ body::before{content:""; position:fixed; inset:0 0 auto 0; height:46vh; pointer-
       </div>
       <button class="sbtn" id="pwSave" style="margin-top:8px">改密码</button>
       <div class="smsg" id="pwMsg"></div>
+    </div>
+
+    <div class="fld" style="margin-top:18px">
+      <label>她可以主动找我</label>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <button class="tab" id="proOn" style="flex:1">开</button>
+        <button class="tab" id="proOff" style="flex:1">关</button>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button class="tab" id="proAny" style="flex:1">随时</button>
+        <button class="tab" id="proMorning" style="flex:1">早上</button>
+        <button class="tab" id="proNight" style="flex:1">夜里</button>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button class="tab" id="proF1" style="flex:1">每天一条</button>
+        <button class="tab" id="proF3" style="flex:1">三天一条</button>
+        <button class="tab" id="proF7" style="flex:1">一周一条</button>
+      </div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button class="tab" id="proModel" style="flex:1">她自己判断</button>
+        <button class="tab" id="proRule" style="flex:1">按时间触发</button>
+      </div>
+      <div class="smsg" id="proMsg">她会在你不在的时候，挑一个时刻跟你说一句</div>
+    </div>
+
+    <div class="fld" style="margin-top:18px">
+      <label>通知</label>
+      <button class="sbtn" id="pushBtn">开启她主动找我</button>
+      <div class="smsg" id="pushMsg">开了之后，她会在你不在的时候给你发消息</div>
     </div>
 
     <div class="fld" style="margin-top:18px">
@@ -3237,6 +3335,139 @@ if (_tb) _tb.addEventListener("click", loadTrash);
     prev.innerHTML = "";
     return u;
   };
+})();
+
+
+/* ================= Web Push ================= */
+(function(){
+  const btn = document.getElementById("pushBtn");
+  const msg = document.getElementById("pushMsg");
+  if (!btn) return;
+
+  function b64ToU8(base64){
+    const pad = "=".repeat((4 - base64.length % 4) % 4);
+    const s = (base64 + pad).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(s);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function say(t){ if (msg) msg.textContent = t; }
+
+  btn.addEventListener("click", async () => {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)){
+        say("这个浏览器不支持通知（iOS 需要先「添加到主屏幕」）");
+        return;
+      }
+      say("正在开启……");
+      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.ready;
+
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted"){ say("你拒绝了通知权限，去浏览器设置里改"); return; }
+
+      const keyResp = await fetch("/api/push/key").then(r => r.json());
+      if (!keyResp.ok || !keyResp.key){ say("服务端没配密钥"); return; }
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub){
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64ToU8(keyResp.key)
+        });
+      }
+      const r = await fetch("/api/push/subscribe", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ u: S.user_id, sub: sub.toJSON() })
+      }).then(x => x.json());
+
+      if (r.ok){
+        say("开好了。她会在你不在的时候找你。");
+        btn.textContent = "通知已开启";
+        if (!document.getElementById("pushTest")){
+          const b = document.createElement("button");
+          b.className = "sbtn"; b.id = "pushTest"; b.textContent = "发一条测试通知";
+          b.style.marginTop = "8px";
+          b.addEventListener("click", async () => {
+            const rr = await fetch("/api/push/test", {
+              method: "POST", headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({ u: S.user_id })
+            }).then(x => x.json());
+            say(rr.ok ? "发了，看看通知栏" : ("没发出去：" + (rr.error || "没有订阅")));
+          });
+          btn.parentNode.appendChild(b);
+        }
+      }
+      else say("保存失败：" + (r.error || ""));
+    } catch(e){
+      say("开启失败：" + (e.message || e));
+    }
+  });
+})();
+
+
+/* ================= 主动消息偏好 ================= */
+(function(){
+  const box = document.getElementById("proOn");
+  if (!box) return;
+  let cur = { enabled: true, window: "any", freq: 1, mode: "model" };
+  const msg = document.getElementById("proMsg");
+
+  function paint(){
+    document.getElementById("proOn").classList.toggle("on", cur.enabled);
+    document.getElementById("proOff").classList.toggle("on", !cur.enabled);
+    document.getElementById("proAny").classList.toggle("on", cur.window === "any");
+    document.getElementById("proMorning").classList.toggle("on", cur.window === "morning");
+    document.getElementById("proNight").classList.toggle("on", cur.window === "night");
+    document.getElementById("proF1").classList.toggle("on", cur.freq === 1);
+    document.getElementById("proF3").classList.toggle("on", cur.freq === 3);
+    document.getElementById("proF7").classList.toggle("on", cur.freq === 7);
+    document.getElementById("proModel").classList.toggle("on", cur.mode === "model");
+    document.getElementById("proRule").classList.toggle("on", cur.mode === "rule");
+  }
+
+  async function load(){
+    if (!S.user_id) return;
+    try {
+      const d = await api("/api/proactive/prefs?u=" + encodeURIComponent(S.user_id));
+      if (d.ok){ cur = { enabled: !!d.enabled, window: d.window || "any",
+                         freq: d.freq || 1, mode: d.mode || "model" }; paint(); }
+    } catch(e){}
+  }
+
+  async function save(){
+    paint();
+    try {
+      const d = await api("/api/proactive/prefs", {
+        u: S.user_id, enabled: cur.enabled, window: cur.window, freq: cur.freq, mode: cur.mode
+      }, "POST");
+      if (msg) msg.textContent = d.ok
+        ? (cur.enabled ? "她会主动找你。" : "关掉了。她不会主动发消息。")
+        : ("没存上：" + (d.error || ""));
+    } catch(e){ if (msg) msg.textContent = "没存上"; }
+  }
+
+  const bind = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", () => { fn(); save(); });
+  };
+  bind("proOn", () => cur.enabled = true);
+  bind("proOff", () => cur.enabled = false);
+  bind("proAny", () => cur.window = "any");
+  bind("proMorning", () => cur.window = "morning");
+  bind("proNight", () => cur.window = "night");
+  bind("proF1", () => cur.freq = 1);
+  bind("proF3", () => cur.freq = 3);
+  bind("proF7", () => cur.freq = 7);
+  bind("proModel", () => cur.mode = "model");
+  bind("proRule", () => cur.mode = "rule");
+
+  // 打开设置时读一次
+  const setBtn = document.getElementById("setBtn");
+  if (setBtn) setBtn.addEventListener("click", load);
+  load();
 })();
 
 </script>

@@ -1,0 +1,9 @@
+﻿[Unit]
+Description=Peini proactive message tick
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mybot
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/mybot/venv/bin/python -m core.proactive --mode model --limit 3

@@ -144,7 +144,10 @@ def get_prompt(persona, user_id=None) -> str:
             on = voice_cfg.samples_on(voice_cfg.load(user_id))
         except Exception:
             pass
-    return base + _SPEECH_SAMPLES if on else base
+    # 样本是流萤的语料，接给别的角色会把她的语气冲掉
+    if on and persona == "流萤":
+        return base + _SPEECH_SAMPLES
+    return base
 
 
 def get_openings(persona, user_id=None):

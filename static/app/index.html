@@ -30,7 +30,7 @@ body{
 /* ================= 背景层 ================= */
 #bg{
   position:fixed; inset:0; z-index:0; pointer-events:none;
-  background-size:cover; background-position:center;
+  background-size:cover; background-position:center top;
   opacity:0; transition:opacity .9s var(--e);
 }
 #bg.on{opacity:1}
@@ -1143,6 +1143,17 @@ async function applyBg(persona, loginMode){
     if (bg.dataset.url === url) return;
     bg.dataset.url = url;
     bg.style.backgroundImage = "url('" + url + "')";
+    // 竖图：按 contain 放，别把人脸裁掉；横图：铺满
+    (function(){
+      const im = new Image();
+      im.onload = function(){
+        const portrait = im.naturalHeight / im.naturalWidth > 1.15;
+        bg.style.backgroundSize = portrait ? "contain" : "cover";
+        bg.style.backgroundPosition = portrait ? "center top" : "center";
+        bg.style.backgroundRepeat = "no-repeat";
+      };
+      im.src = url;
+    })();
     bg.classList.add("on");
   } catch (e) {}
 }

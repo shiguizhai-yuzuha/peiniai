@@ -301,6 +301,17 @@ def handle_message(user_id: str, session_id: str, message, persona: str, reply_t
         messages.append({"role": "system", "content": guard.XIAO_NUAN_PROMPT})
         repo.add_milestone(user_id, persona, "hidden:xiaonuan", "——")
 
+    # ===== 图片：先提取事实，再让她说 =====
+    _vision_note = ""
+    if attachments:
+        try:
+            from core import vision as _vision
+            _vision_note = _vision.describe(attachments)
+            if _vision_note:
+                print("[看图] 提取完成，%d 字" % len(_vision_note), flush=True)
+        except Exception as _e:
+            print(f"[看图] 跳过：{_e}", flush=True)
+
     # ===== 图片：把最后一条用户消息变成块数组 =====
     _use_vision = bool(attachments)
     if _use_vision:
@@ -331,6 +342,11 @@ def handle_message(user_id: str, session_id: str, message, persona: str, reply_t
         except Exception as _e:
             print(f"[图片] 处理失败，退回纯文本：{_e}", flush=True)
             _use_vision = False
+
+    if _vision_note:
+        messages.append({"role": "system", "content":
+            "[系统] 他发了一张图。你看到的是：\n" + _vision_note +
+            "\n说话时挑一两个具体细节就好，不要念清单，不要说\"很丰盛\"这类空话。"})
 
     # ===== 撤回感知：他刚收回了什么 =====
     if not in_companion:

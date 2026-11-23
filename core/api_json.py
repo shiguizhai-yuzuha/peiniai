@@ -6,6 +6,7 @@ gr.State 会被序列化成 null（拿不到 user_id），形状也不好用。
 
 这一套全部返回普通 JSON。
 """
+import json
 import os
 import uuid
 from datetime import datetime
@@ -441,6 +442,110 @@ def register(app):
             return {"ok": True, "text": "".join(buf)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    # ===== DS 网页端：会话 + 流式 =====
+    def _ds_ensure():
+        from core import ds_chat
+        ds_chat.ensure_schema()
+
+    @app.get("/api/ds/convos")
+    def _ds_convos(u: str = ""):
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放", "items": []}
+        _ds_ensure()
+        from core import ds_chat
+        return {"ok": True, "items": ds_chat.list_convos(u)}
+
+    @app.post("/api/ds/convo")
+    async def _ds_convo_new(request: Request):
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放"}
+        _ds_ensure()
+        from core import ds_chat
+        cid = ds_chat.create_convo(u, d.get("title") or "新对话", d.get("model") or "deepseek-chat")
+        return {"ok": True, "id": cid}
+
+    @app.post("/api/ds/convo/delete")
+    async def _ds_convo_del(request: Request):
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放"}
+        _ds_ensure()
+        from core import ds_chat
+        ds_chat.delete_convo(u, d.get("id") or "")
+        return {"ok": True}
+
+    @app.post("/api/ds/convo/rename")
+    async def _ds_convo_rename(request: Request):
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放"}
+        _ds_ensure()
+        from core import ds_chat
+        ds_chat.rename_convo(u, d.get("id") or "", d.get("title") or "新对话")
+        return {"ok": True}
+
+    @app.get("/api/ds/msgs")
+    def _ds_msgs(u: str = "", id: str = ""):
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放", "items": []}
+        _ds_ensure()
+        from core import ds_chat
+        return {"ok": True, "items": ds_chat.get_msgs(id)}
+
+    @app.post("/api/ds/stream")
+    async def _ds_stream(request: Request):
+        from fastapi.responses import StreamingResponse
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        cid = (d.get("id") or "").strip()
+        text = (d.get("text") or "").strip()
+        model = (d.get("model") or "deepseek-chat").strip()
+        thinking = bool(d.get("thinking"))
+        system = (d.get("system") or "").strip()
+
+        if not _ds_allowed(u):
+            return JSONResponse({"ok": False, "error": "只对管理员开放"}, status_code=403)
+        if not _ds_rate_ok(u):
+            return JSONResponse({"ok": False, "error": "太快了，等一分钟"}, status_code=429)
+        if not text:
+            return JSONResponse({"ok": False, "error": "空消息"}, status_code=400)
+
+        _ds_ensure()
+        from core import ds_chat, client as _cli
+        if not cid:
+            cid = ds_chat.create_convo(u, text[:18], model)
+        ds_chat.add_msg(cid, "user", text)
+        ds_chat.touch_convo(u, cid, model,
+                            None if ds_chat.get_msgs(cid)[:-1] else text[:18])
+
+        msgs = ds_chat.build_context(cid, system)
+
+        def gen():
+            parts = []
+            try:
+                yield "data: " + json.dumps({"cid": cid}, ensure_ascii=False) + "\n\n"
+                extra = {"thinking": {"type": "enabled" if thinking else "disabled"}}
+                for delta, _u2 in _cli.stream_chat(
+                        msgs, temperature=0.7, max_tokens=8000, model=model,
+                        extra_body=extra):
+                    if delta:
+                        parts.append(delta)
+                        yield "data: " + json.dumps({"t": delta}, ensure_ascii=False) + "\n\n"
+                full = "".join(parts)
+                ds_chat.add_msg(cid, "assistant", full)
+                yield "data: " + json.dumps({"done": True, "len": len(full)}) + "\n\n"
+            except Exception as e:
+                yield "data: " + json.dumps({"err": str(e)[:300]}, ensure_ascii=False) + "\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache",
+                                          "X-Accel-Buffering": "no"})
 
     @app.get("/api/memories")
     def _memories(u: str = "", p: str = "", limit: int = 200):

@@ -88,6 +88,17 @@
     cursor:pointer;background:#141a20}
   .chip:hover{border-color:#3a4657}
   .err{color:#ff8a8a;font-size:13px}
+  .acts{display:flex;gap:6px;margin-top:6px;opacity:0;transition:.15s}
+  .row:hover .acts{opacity:1}
+  .acts button{font-size:11.5px;color:#8b929b;background:none;border:1px solid var(--line);
+    border-radius:6px;padding:2px 8px;cursor:pointer}
+  .acts button:hover{color:#cfd6df;border-color:#3a4657}
+  .editbox{width:100%;background:#151a20;border:1px solid #3a4657;border-radius:10px;
+    color:var(--text);font-size:15px;line-height:1.6;padding:10px 12px;resize:vertical;min-height:64px}
+  .edits{display:flex;gap:8px;margin-top:8px}
+  .edits button{font-size:12.5px;padding:5px 12px;border-radius:8px;cursor:pointer;
+    border:1px solid var(--line);background:#1b2026;color:#cfd6df}
+  .edits .p{background:var(--brand);border-color:var(--brand);color:#fff}
   #bal{font-size:12.5px;color:#9aa3ad;border:1px solid var(--line);border-radius:8px;
     padding:5px 10px;white-space:nowrap}
   #bal b{color:#e8eaed;font-weight:600}
@@ -222,19 +233,39 @@ function render(){
   const box = $("msgs");
   box.innerHTML = "";
   $("empty").style.display = msgs.length ? "none" : "block";
-  msgs.forEach((m) => {
+  msgs.forEach((m, idx) => {
     const row = document.createElement("div");
     row.className = "row " + (m.role === "user" ? "user" : "ai");
+    if (m._editing){
+      row.innerHTML = '<div class="avatar">你</div><div class="bubble">' +
+        '<textarea class="editbox" id="editBox">' + esc(m.content) + '</textarea>' +
+        '<div class="edits"><button class="p" id="editSave">保存并重发</button>' +
+        '<button id="editCancel">取消</button></div></div>';
+      box.appendChild(row);
+      document.getElementById("editSave").onclick = () => saveEdit(idx);
+      document.getElementById("editCancel").onclick = () => { m._editing = false; render(); };
+      return;
+    }
     const think = (m.role !== "user" && m.reasoning)
       ? '<details class="think"' + (m._open ? " open" : "") + '>' +
         '<summary>已深度思考</summary>' +
         '<div class="body">' + esc(m.reasoning) + '</div></details>'
       : '';
+    const acts = m.role === "user"
+      ? '<div class="acts"><button data-act="edit" data-i="' + idx + '">修改</button></div>'
+      : '<div class="acts"><button data-act="regen" data-i="' + idx + '">重新生成</button></div>';
     row.innerHTML =
       '<div class="avatar">' + (m.role === "user" ? "你" : "DS") + '</div>' +
-      '<div class="bubble">' + think +
-      (m.role === "user" ? esc(m.content) : md(m.content)) + '</div>';
+      '<div><div class="bubble">' + think +
+      (m.role === "user" ? esc(m.content) : md(m.content)) + '</div>' + acts + '</div>';
     box.appendChild(row);
+  });
+  box.querySelectorAll("[data-act]").forEach(b => {
+    b.onclick = () => {
+      const i = Number(b.dataset.i);
+      if (b.dataset.act === "edit"){ msgs[i]._editing = true; render(); }
+      else regenerate(i);
+    };
   });
   box.querySelectorAll(".copy").forEach(b => {
     b.onclick = () => {
@@ -314,17 +345,24 @@ async function delConvo(id){
   if (id === curId) newConvo(); else loadConvos();
 }
 
-async function send(){
+async function send(textOverride, opts){
+  opts = opts || {};
   const input = $("input");
-  const text = input.value.trim();
+  const text = (textOverride || input.value).trim();
   if (!text || busy) return;
   busy = true; $("send").disabled = true;
-  input.value = ""; input.style.height = "auto";
+  if (!opts.isEdit && !opts.isRegen){ input.value = ""; input.style.height = "auto"; }
 
-  msgs.push({role: "user", content: text});
+  if (!opts.isEdit && !opts.isRegen) msgs.push({role: "user", content: text});
   msgs.push({role: "assistant", content: "", reasoning: ""});
   const aiIndex = msgs.length - 1;
   render();
+
+  if (opts.isEdit && curId && msgs.length){
+    try {
+      const r = await api("/api/ds/edit", {u: uid, id: curId, mid: (msgs[msgs.length-1]||{})._mid || 0, text});
+    } catch(e){}
+  }
 
   const body = {
     u: uid, id: curId || "", text,
@@ -397,7 +435,7 @@ async function send(){
   busy = false; $("send").disabled = false;
 }
 
-$("send").onclick = send;
+$("send").onclick = () => send();
 $("input").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); send(); }
 });

@@ -226,3 +226,36 @@ def file_texts(convo_id: str, limit: int = 3, each: int = 12000):
         return [(r["name"], (r["content"] or "")[:each]) for r in rows]
     except Exception:
         return []
+
+def delete_after(convo_id: str, msg_id: int) -> int:
+    """删掉 msg_id 之后的所有消息，返回删除条数。"""
+    c = _conn()
+    n = c.execute("DELETE FROM ds_msgs WHERE convo_id=? AND id > ?", (convo_id, msg_id)).rowcount
+    c.commit()
+    c.close()
+    return n
+
+
+def update_msg(msg_id: int, text: str) -> bool:
+    c = _conn()
+    c.execute("UPDATE ds_msgs SET content=? WHERE id=?", (text, msg_id))
+    c.commit()
+    c.close()
+    return True
+
+
+def last_assistant(convo_id: str):
+    """最后一条 assistant 消息（用于重新生成）。"""
+    c = _conn()
+    row = c.execute("SELECT id FROM ds_msgs WHERE convo_id=? AND role='assistant' "
+                    "ORDER BY id DESC LIMIT 1", (convo_id,)).fetchone()
+    c.close()
+    return int(row[0]) if row else None
+
+
+def last_user(convo_id: str):
+    c = _conn()
+    row = c.execute("SELECT id, content FROM ds_msgs WHERE convo_id=? AND role='user' "
+                    "ORDER BY id DESC LIMIT 1", (convo_id,)).fetchone()
+    c.close()
+    return (int(row[0]), row[1]) if row else (None, "")

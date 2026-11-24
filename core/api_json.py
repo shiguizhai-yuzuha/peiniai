@@ -713,6 +713,39 @@ def register(app):
         from core import ds_chat
         return {"ok": True, "items": ds_chat.list_files(id)}
 
+    @app.post("/api/ds/edit")
+    async def _ds_edit(request: Request):
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        cid = (d.get("id") or "").strip()
+        mid = int(d.get("mid") or 0)
+        text = (d.get("text") or "").strip()
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "余额不足，先充值"}
+        if not (cid and mid and text):
+            return {"ok": False, "error": "参数不对"}
+        _ds_ensure()
+        from core import ds_chat
+        ds_chat.update_msg(mid, text)
+        n = ds_chat.delete_after(cid, mid)
+        return {"ok": True, "removed": n,
+                "items": ds_chat.get_msgs(cid)}
+
+    @app.post("/api/ds/delete_last")
+    async def _ds_delete_last(request: Request):
+        """重新生成前先把最后一条 assistant 删掉。"""
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        cid = (d.get("id") or "").strip()
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "余额不足，先充值"}
+        _ds_ensure()
+        from core import ds_chat
+        mid = ds_chat.last_assistant(cid)
+        if mid:
+            ds_chat.delete_after(cid, mid - 1)
+        return {"ok": True, "items": ds_chat.get_msgs(cid)}
+
     @app.get("/api/memories")
     def _memories(u: str = "", p: str = "", limit: int = 200):
         """给星图用：这个人的记忆点。"""

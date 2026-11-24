@@ -523,7 +523,30 @@ def register(app):
         ds_chat.touch_convo(u, cid, model,
                             None if ds_chat.get_msgs(cid)[:-1] else text[:18])
 
-        msgs = ds_chat.build_context(cid, system)
+        tier = (d.get("tier") or "mid").strip()
+        budget = ds_chat.tier_chars(tier)
+
+        sys_extra = ""
+        if d.get("search"):
+            try:
+                from core import ds_tools as _tools
+                hit = _tools.search_block(text[:80])
+                if hit:
+                    sys_extra = hit
+            except Exception as _e:
+                print("[DS 搜索] 失败:", _e, flush=True)
+
+        file_block = ""
+        try:
+            blocks = ds_chat.file_texts(cid)
+            if blocks:
+                file_block = "\n\n".join("[文件：%s]\n%s" % (n, c) for n, c in blocks)
+        except Exception:
+            pass
+
+        merged_system = "\n\n".join(x for x in (system, file_block, sys_extra) if x)
+        msgs = ds_chat.build_context(cid, merged_system, budget=budget)
+        prompt_chars = sum(len(str(m.get("content") or "")) for m in msgs)
 
         def gen():
             parts = []
@@ -538,7 +561,19 @@ def register(app):
                         yield "data: " + json.dumps({"t": delta}, ensure_ascii=False) + "\n\n"
                 full = "".join(parts)
                 ds_chat.add_msg(cid, "assistant", full)
-                yield "data: " + json.dumps({"done": True, "len": len(full)}) + "\n\n"
+                # ===== 计费：按 API 价三倍 =====
+                try:
+                    from core import ds_tools as _tools
+                    pt = _tools.estimate_tokens(str(prompt_chars))
+                    ct = _tools.estimate_tokens(full)
+                    fee = _tools.cost_yuan(pt, ct)
+                    bal = ds_chat.spend(u, fee)
+                    yield "data: " + json.dumps({"done": True, "len": len(full),
+                                                         "cost": round(fee, 4), "balance": round(bal, 4),
+                                                         "tokens": pt + ct}, ensure_ascii=False) + "\n\n"
+                except Exception as _e:
+                    yield "data: " + json.dumps({"done": True, "len": len(full), "cost": 0,
+                                                         "error": str(_e)[:80]}, ensure_ascii=False) + "\n\n"
             except Exception as e:
                 yield "data: " + json.dumps({"err": str(e)[:300]}, ensure_ascii=False) + "\n\n"
             yield "data: [DONE]\n\n"
@@ -546,6 +581,59 @@ def register(app):
         return StreamingResponse(gen(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache",
                                           "X-Accel-Buffering": "no"})
+
+    @app.get("/api/ds/balance")
+    def _ds_balance(u: str = ""):
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放", "balance": 0}
+        _ds_ensure()
+        from core import ds_chat, ds_tools
+        return {"ok": True, "balance": round(ds_chat.balance_of(u), 4),
+                "tiers": [{"key": k, "label": v["label"], "chars": v["chars"]}
+                          for k, v in ds_chat.TIERS.items()],
+                "markup": ds_tools.MARKUP}
+
+    @app.post("/api/ds/upload")
+    async def _ds_upload(request: Request):
+        import base64 as _b64
+        import os as _os
+        import uuid as _uuid
+        d = await request.json()
+        u = (d.get("u") or "").strip()
+        cid = (d.get("id") or "").strip()
+        name = (d.get("name") or "file.txt").strip()
+        data = d.get("data") or ""
+        if not _ds_allowed(u):
+            return {"ok": False, "error": "只对管理员开放"}
+        _ds_ensure()
+        from core import ds_chat, ds_tools
+        if not cid:
+            cid = ds_chat.create_convo(u, name[:18])
+        root = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                             "static", "uploads", "ds")
+        _os.makedirs(root, exist_ok=True)
+        ext = _os.path.splitext(name)[1][:10] or ".txt"
+        path = _os.path.join(root, _uuid.uuid4().hex + ext)
+        try:
+            raw = _b64.b64decode(data.split(",")[-1])
+            with open(path, "wb") as f:
+                f.write(raw)
+        except Exception as e:
+            return {"ok": False, "error": "文件写入失败：%s" % e}
+        text = ds_tools.read_file(path)
+        if not text:
+            return {"ok": False, "error": "这个格式读不出文字（支持 txt/md/py/json/csv/docx/pdf）"}
+        fid = ds_chat.add_file(cid, name, text)
+        return {"ok": True, "id": cid, "fid": fid, "name": name,
+                "chars": len(text), "preview": text[:160]}
+
+    @app.get("/api/ds/fs")
+    def _ds_files(u: str = "", id: str = ""):
+        if not _ds_allowed(u):
+            return {"ok": False, "items": []}
+        _ds_ensure()
+        from core import ds_chat
+        return {"ok": True, "items": ds_chat.list_files(id)}
 
     @app.get("/api/memories")
     def _memories(u: str = "", p: str = "", limit: int = 200):

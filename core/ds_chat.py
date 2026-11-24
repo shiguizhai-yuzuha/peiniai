@@ -134,3 +134,78 @@ def build_context(cid: str, system: str = "", budget: int = MAX_CONTEXT_CHARS):
         out.append({"role": "system", "content": system})
     out.extend(picked)
     return out
+
+# ---------- 余额 ----------
+
+def balance_of(user_id: str) -> float:
+    try:
+        c = _conn()
+        row = c.execute("SELECT COALESCE(balance,0) FROM users WHERE user_id=?", (user_id,)).fetchone()
+        c.close()
+        return float(row[0]) if row else 0.0
+    except Exception:
+        return 0.0
+
+
+def spend(user_id: str, amount: float) -> float:
+    """扣钱，返回扣完的余额。"""
+    try:
+        c = _conn()
+        c.execute("UPDATE users SET balance = COALESCE(balance,0) - ? WHERE user_id=?",
+                  (abs(amount), user_id))
+        c.commit()
+        row = c.execute("SELECT COALESCE(balance,0) FROM users WHERE user_id=?", (user_id,)).fetchone()
+        c.close()
+        return float(row[0]) if row else 0.0
+    except Exception:
+        return 0.0
+
+
+# ---------- 上下文档位 ----------
+
+TIERS = {
+    "short": {"chars": 8000, "label": "短 · 8k 字"},
+    "mid": {"chars": 24000, "label": "中 · 24k 字"},
+    "long": {"chars": 48000, "label": "长 · 48k 字"},
+    "max": {"chars": 96000, "label": "超长 · 96k 字"},
+}
+
+
+def tier_chars(tier: str) -> int:
+    return TIERS.get(tier or "mid", TIERS["mid"])["chars"]
+
+
+# ---------- 文件 ----------
+
+def add_file(convo_id: str, name: str, text: str) -> int:
+    c = _conn()
+    c.execute("CREATE TABLE IF NOT EXISTS ds_files("
+              "id INTEGER PRIMARY KEY AUTOINCREMENT, convo_id TEXT, name TEXT, "
+              "content TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+    c.execute("INSERT INTO ds_files(convo_id,name,content) VALUES(?,?,?)", (convo_id, name, text))
+    fid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    c.commit()
+    c.close()
+    return int(fid)
+
+
+def list_files(convo_id: str):
+    try:
+        c = _conn()
+        rows = c.execute("SELECT id, name, LENGTH(content) n FROM ds_files WHERE convo_id=? ORDER BY id",
+                         (convo_id,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def file_texts(convo_id: str, limit: int = 3, each: int = 12000):
+    try:
+        c = _conn()
+        rows = c.execute("SELECT name, content FROM ds_files WHERE convo_id=? ORDER BY id DESC LIMIT ?",
+                         (convo_id, limit)).fetchall()
+        c.close()
+        return [(r["name"], (r["content"] or "")[:each]) for r in rows]
+    except Exception:
+        return []

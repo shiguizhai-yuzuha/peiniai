@@ -45,6 +45,30 @@ def _clean(html: str) -> str:
     return text.strip()
 
 
+JUNK_HOSTS = ("rili.com.cn", "tthuangli.com", "lishi.", "baike.baidu.com/item/今天",
+              "huangli", "wannianli", "xingzuo", "zhihu.com/question/0")
+
+
+def clean_query(q: str) -> str:
+    """把口语问句压成搜索能用的短词，保留关键名词。"""
+    q = q.strip()
+    junk = ["怎么样", "怎么", "如何", "请问", "帮我", "查一下", "查查", "搜一下", "一下",
+            "今天", "明天", "后天", "现在", "最近", "要不要", "要带", "带伞吗", "吗", "呢",
+            "呀", "啊", "我", "你", "的", "了", "？", "?", "！", "，", ",", "。", "~"]
+    for w in junk:
+        q = q.replace(w, " ")
+    q = " ".join(q.split())
+    return q[:30] or "新闻"
+
+
+def _keep(title: str, url: str, query: str) -> bool:
+    """标题里至少命中查询里的一个 2 字词，否则当噪声丢掉。"""
+    words = [w for w in query.split() if len(w) >= 2]
+    if not words:
+        return True
+    return any(w in title for w in words)
+
+
 def _bing(query: str, limit: int):
     html = _get("https://cn.bing.com/search?q=%s&setlang=zh-CN" % _q(query))
     out = []
@@ -59,6 +83,10 @@ def _bing(query: str, limit: int):
         s = re.search(r'<p[^>]*>(.*?)</p>', block, re.S)
         if s:
             snip = _clean(s.group(1))
+        if any(j in url for j in JUNK_HOSTS):
+            continue
+        if not _keep(title, url, query):
+            continue
         out.append((title, url, snip))
         if len(out) >= limit:
             break
@@ -81,6 +109,7 @@ def _baidu(query: str, limit: int):
 
 def search_web(query: str, limit: int = 4, per_page: int = 1200):
     """依次试 Bing / 百度，都失败返回空。"""
+    query = clean_query(query)
     hits = []
     for fn in (_bing, _baidu):
         try:
@@ -105,8 +134,43 @@ def search_web(query: str, limit: int = 4, per_page: int = 1200):
     return out
 
 
+def weather_block(query: str) -> str:
+    """天气走 wttr.in（免 key），比抓网页可靠。"""
+    import json as _json
+    import re as _re
+    import urllib.parse as _up
+
+    m = _re.search(r"([\u4e00-\u9fff]{2,6})", query)
+    city = m.group(1) if m else "杭州"
+    url = "https://wttr.in/%s?format=j1&lang=zh" % _up.quote(city)
+    try:
+        raw = _get(url, timeout=12)
+        d = _json.loads(raw)
+    except Exception as e:
+        print("[天气] 失败:", e, flush=True)
+        return ""
+
+    cur = (d.get("current_condition") or [{}])[0]
+    days = d.get("weather") or []
+    lines = ["[实时天气] %s：%s°C（体感 %s°C），湿度 %s%%，%s" % (
+        city, cur.get("temp_C"), cur.get("FeelsLikeC"), cur.get("humidity"),
+        (cur.get("lang_zh") or cur.get("weatherDesc") or [{}])[0].get("value", ""))]
+    for day in days[:2]:
+        desc = (day.get("hourly") or [{}])[4].get("lang_zh") or ""
+        if isinstance(desc, list):
+            desc = desc[0].get("value", "") if desc else ""
+        lines.append("%s：%s~%s°C，%s" % (day.get("date"), day.get("mintempC"),
+                                          day.get("maxtempC"), desc))
+    lines.append("来源：wttr.in（实时抓取）")
+    return "\n".join(lines)
+
+
 def search_block(query: str) -> str:
     """把搜索整理成一段可塞进 prompt 的文字。"""
+    if "天气" in query or "气温" in query or "下雨" in query:
+        w = weather_block(query)
+        if w:
+            return w + "\n\n（以上为实时抓取，具体以官方预报为准）"
     rows = search_web(query)
     if not rows:
         return ""

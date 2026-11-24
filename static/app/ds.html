@@ -182,8 +182,27 @@ function esc(s){
   return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+function deLatex(s){
+  // 页面上没有公式渲染，把常见的 LaTeX 换成能读的文本
+  let t = s;
+  t = t.replace(/\\\[([\s\S]*?)\\\]/g, "\n$1\n").replace(/\\\(([\s\S]*?)\\\)/g, "$1");
+  t = t.replace(/\$\$([\s\S]*?)\$\$/g, "\n$1\n").replace(/\$([^$\n]+)\$/g, "$1");
+  t = t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "($1/$2)");
+  t = t.replace(/\\dfrac\{([^{}]+)\}\{([^{}]+)\}/g, "($1/$2)");
+  t = t.replace(/\\text\{([^{}]*)\}/g, "$1");
+  t = t.replace(/\\boxed\{([^{}]*)\}/g, "**$1**");
+  t = t.replace(/\\times/g, "×").replace(/\\div/g, "÷")
+       .replace(/\\cdot/g, "·").replace(/\\approx/g, "≈").replace(/\\le/g, "≤")
+       .replace(/\\ge/g, "≥").replace(/\\rightarrow/g, "→").replace(/\\to/g, "→");
+  t = t.replace(/\\left|\\right/g, "");
+  t = t.replace(/\\\\/g, "\n");
+  t = t.replace(/\\[,;:!]/g, " ").replace(/\\!/g, "");
+  t = t.replace(/\^\{2\}/g, "²").replace(/\^2/g, "²").replace(/\^3/g, "³");
+  return t;
+}
+
 function md(s){
-  let t = esc(s);
+  let t = esc(deLatex(s));
   t = t.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
     return '<pre><button class="copy">复制</button><code>' + code.replace(/\n$/, "") + '</code></pre>';
   });

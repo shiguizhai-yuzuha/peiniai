@@ -390,10 +390,22 @@ def register(app):
     _DS_WHITELIST = {"XIAO2026"}
     _ds_hits = {}
 
+    DS_PUBLIC = True   # True = 所有登录用户可用（按余额扣费）；False = 只管理员
+
     def _ds_allowed(user_id: str) -> bool:
-        """只有管理员 / 白名单能用，防止别人白烧 key。"""
+        """白名单模式只给管理员；公开模式任何有余额的用户都能用。"""
         if not user_id:
             return False
+        if DS_PUBLIC:
+            try:
+                conn = repo.get_conn()
+                conn.row_factory = None
+                row = conn.execute("SELECT COALESCE(balance,0) FROM users WHERE user_id=?",
+                                   (user_id,)).fetchone()
+                conn.close()
+                return bool(row) and float(row[0]) > 0
+            except Exception:
+                return False
         try:
             conn = repo.get_conn()
             conn.row_factory = None
@@ -512,6 +524,12 @@ def register(app):
         level = (d.get("level") or "off").strip()       # off / low / mid / high
         thinking = bool(d.get("thinking")) or level != "off"
         system = (d.get("system") or "").strip()
+        if not system:
+            system = (
+                "你是 DeepSeek，一个通用 AI 助手。"
+                "回答要准确、直接、有结构；不知道就说不知道，不要编。"
+                "中文回答。涉及事实、数据、时间的内容，能查证就查证。"
+            )
 
         if not _ds_allowed(u):
             return JSONResponse({"ok": False, "error": "只对管理员开放"}, status_code=403)
@@ -530,6 +548,11 @@ def register(app):
 
         tier = (d.get("tier") or "mid").strip()
         budget = ds_chat.tier_chars(tier)
+        if tier == "custom":
+            try:
+                budget = max(2000, min(400000, int(d.get("tierChars") or 24000)))
+            except Exception:
+                budget = 24000
 
         sys_extra = ""
         if d.get("search"):

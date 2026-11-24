@@ -149,7 +149,10 @@
           <option value="mid">上下文 24k</option>
           <option value="long">上下文 48k</option>
           <option value="max">上下文 96k</option>
+          <option value="custom">上下文 自定义</option>
         </select>
+        <input id="tierCustom" class="mini" type="number" min="2" max="400"
+               placeholder="k 字" style="width:74px;display:none">
         <label class="tg" id="searchTg"><input type="checkbox" id="search">联网</label>
         <label class="tg" id="fileTg">＋ 文件<input type="file" id="file" hidden accept="image/*,.txt,.md,.py,.json,.csv,.docx,.pdf"></label>
         <button id="send">↑</button>
@@ -296,6 +299,7 @@ async function send(){
     model: $("model").value,
     level: $("level").value,
     tier: $("tier").value,
+    tierChars: $("tier").value === "custom" ? Math.max(2, Math.min(400, Number($("tierCustom").value) || 24)) * 1000 : 0,
     search: $("search").checked,
   };
 
@@ -366,10 +370,8 @@ $("input").addEventListener("input", (e) => {
   el.style.height = Math.min(200, el.scrollHeight) + "px";
 });
 $("newBtn").onclick = newConvo;
-$("searchTg").onclick = (e) => {
-  const cb = $("search");
-  if (e.target.tagName !== "INPUT") cb.checked = !cb.checked;
-  $("searchTg").classList.toggle("on", cb.checked);
+$("search").onchange = () => {
+  $("searchTg").classList.toggle("on", $("search").checked);
 };
 $("file").onchange = async (e) => {
   const f = e.target.files[0];
@@ -385,6 +387,11 @@ $("file").onchange = async (e) => {
   $("hint").textContent = "已加入 " + d.name + "（" + d.chars + " 字）";
   loadFiles();
   e.target.value = "";
+};
+$("tier").onchange = () => {
+  const on = $("tier").value === "custom";
+  $("tierCustom").style.display = on ? "block" : "none";
+  if (on) $("tierCustom").focus();
 };
 $("level").onchange = () => {
   if ($("level").value !== "off") $("model").value = "r1";

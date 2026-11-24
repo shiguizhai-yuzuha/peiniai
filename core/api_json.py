@@ -611,6 +611,7 @@ def register(app):
 
         def gen():
             parts = []
+            think = []
             try:
                 yield "data: " + json.dumps({"cid": cid}, ensure_ascii=False) + "\n\n"
                 extra = {"thinking": {"type": "enabled" if thinking else "disabled"}}
@@ -622,14 +623,17 @@ def register(app):
                     max_out = 12000
                 else:
                     max_out = 8000
-                for delta, _u2 in _cli.stream_chat(
+                for kind, piece in _cli.stream_chat_ex(
                         msgs, temperature=0.7, max_tokens=max_out, model=model,
                         extra_body=extra):
-                    if delta:
-                        parts.append(delta)
-                        yield "data: " + json.dumps({"t": delta}, ensure_ascii=False) + "\n\n"
+                    if kind == "think":
+                        think.append(piece)
+                        yield "data: " + json.dumps({"r": piece}, ensure_ascii=False) + "\n\n"
+                    elif kind == "text":
+                        parts.append(piece)
+                        yield "data: " + json.dumps({"t": piece}, ensure_ascii=False) + "\n\n"
                 full = "".join(parts)
-                ds_chat.add_msg(cid, "assistant", full)
+                ds_chat.add_msg(cid, "assistant", full, "".join(think))
                 # ===== 计费：按 API 价三倍 =====
                 try:
                     from core import ds_tools as _tools

@@ -53,6 +53,13 @@
   .copy{position:absolute;right:8px;top:8px;font-size:11px;color:#8b929b;background:#161a1f;
     border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer;opacity:0;transition:.15s}
   pre:hover .copy{opacity:1}
+  .think{border-left:2px solid #2f3a48;margin:2px 0 12px;padding:6px 0 6px 12px}
+  .think summary{font-size:12.5px;color:#8b929b;cursor:pointer;user-select:none;list-style:none}
+  .think summary::-webkit-details-marker{display:none}
+  .think summary::before{content:"▸ ";color:#6b737d}
+  .think[open] summary::before{content:"▾ "}
+  .think .body{font-size:13px;color:#8f97a1;line-height:1.7;white-space:pre-wrap;margin-top:8px;
+    max-height:260px;overflow:auto}
   .cursor{display:inline-block;width:8px;height:16px;background:var(--brand);margin-left:2px;
     animation:blink 1s steps(2) infinite;vertical-align:-2px}
   @keyframes blink{50%{opacity:0}}
@@ -218,9 +225,15 @@ function render(){
   msgs.forEach((m) => {
     const row = document.createElement("div");
     row.className = "row " + (m.role === "user" ? "user" : "ai");
+    const think = (m.role !== "user" && m.reasoning)
+      ? '<details class="think"' + (m._open ? " open" : "") + '>' +
+        '<summary>已深度思考</summary>' +
+        '<div class="body">' + esc(m.reasoning) + '</div></details>'
+      : '';
     row.innerHTML =
       '<div class="avatar">' + (m.role === "user" ? "你" : "DS") + '</div>' +
-      '<div class="bubble">' + (m.role === "user" ? esc(m.content) : md(m.content)) + '</div>';
+      '<div class="bubble">' + think +
+      (m.role === "user" ? esc(m.content) : md(m.content)) + '</div>';
     box.appendChild(row);
   });
   box.querySelectorAll(".copy").forEach(b => {
@@ -284,7 +297,7 @@ async function openConvo(id, title, model){
   $("title").textContent = curTitle;
   if (model) $("model").value = model.startsWith("deepseek-reasoner") ? "deepseek-reasoner" : "deepseek-chat";
   const d = await api("/api/ds/msgs?u=" + encodeURIComponent(uid) + "&id=" + encodeURIComponent(id));
-  msgs = (d.items || []).map(m => ({role: m.role, content: m.content || ""}));
+  msgs = (d.items || []).map(m => ({role: m.role, content: m.content || "", reasoning: m.reasoning || ""}));
   render(); loadConvos(); loadFiles();
 }
 
@@ -309,7 +322,7 @@ async function send(){
   input.value = ""; input.style.height = "auto";
 
   msgs.push({role: "user", content: text});
-  msgs.push({role: "assistant", content: ""});
+  msgs.push({role: "assistant", content: "", reasoning: ""});
   const aiIndex = msgs.length - 1;
   render();
 
@@ -349,6 +362,11 @@ async function send(){
         let j = {};
         try { j = JSON.parse(payload); } catch(e){ continue; }
         if (j.cid && !curId){ curId = j.cid; }
+        if (j.r){
+          msgs[aiIndex].reasoning = (msgs[aiIndex].reasoning || "") + j.r;
+          msgs[aiIndex]._open = true;
+          render();
+        }
         if (j.t){
           msgs[aiIndex].content += j.t;
           const bubbles = $("msgs").querySelectorAll(".row.ai .bubble");

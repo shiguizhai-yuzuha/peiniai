@@ -77,3 +77,36 @@ def rewrite_harm(messages, bad_text, reasons):
         frequency_penalty=FREQUENCY_PENALTY or None,
     )
     return (resp.choices[0].message.content or "").strip()
+
+def stream_chat_ex(messages, temperature=None, max_tokens=None,
+                   model=None, extra_body=None):
+    """带思考过程的流式：yield (kind, text)
+
+    kind = "think" | "text" | "usage"
+    R1 的 reasoning_content 会以 "think" 出来，界面可以单独折叠展示。
+    """
+    _t = TEMPERATURE if temperature is None else temperature
+    _m = MAX_TOKENS if max_tokens is None else max_tokens
+
+    stream = client.chat.completions.create(
+        model=model or MODEL,
+        messages=messages,
+        stream=True,
+        temperature=_t,
+        max_tokens=_m,
+        top_p=TOP_P or None,
+        stream_options={"include_usage": True},
+        **({"extra_body": extra_body} if extra_body else {}),
+    )
+    for chunk in stream:
+        usage = getattr(chunk, "usage", None)
+        if usage:
+            yield "usage", usage
+        if not chunk.choices:
+            continue
+        d = chunk.choices[0].delta
+        rc = getattr(d, "reasoning_content", None)
+        if rc:
+            yield "think", rc
+        if d.content:
+            yield "text", d.content

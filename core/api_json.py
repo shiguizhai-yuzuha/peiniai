@@ -442,7 +442,7 @@ def register(app):
             if not msgs:
                 return {"ok": False, "error": "空消息"}
             if not _ds_allowed(u):
-                return {"ok": False, "error": "这个入口只对管理员开放"}
+                return {"ok": False, "error": "余额不足，先充值"}
             if not _ds_rate_ok(u):
                 return {"ok": False, "error": "太快了，等一分钟"}
 
@@ -463,7 +463,7 @@ def register(app):
     @app.get("/api/ds/convos")
     def _ds_convos(u: str = ""):
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放", "items": []}
+            return {"ok": False, "error": "余额不足，先充值", "items": []}
         _ds_ensure()
         from core import ds_chat
         return {"ok": True, "items": ds_chat.list_convos(u)}
@@ -473,7 +473,7 @@ def register(app):
         d = await request.json()
         u = (d.get("u") or "").strip()
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放"}
+            return {"ok": False, "error": "余额不足，先充值"}
         _ds_ensure()
         from core import ds_chat
         cid = ds_chat.create_convo(u, d.get("title") or "新对话", d.get("model") or "deepseek-chat")
@@ -484,7 +484,7 @@ def register(app):
         d = await request.json()
         u = (d.get("u") or "").strip()
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放"}
+            return {"ok": False, "error": "余额不足，先充值"}
         _ds_ensure()
         from core import ds_chat
         ds_chat.delete_convo(u, d.get("id") or "")
@@ -495,7 +495,7 @@ def register(app):
         d = await request.json()
         u = (d.get("u") or "").strip()
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放"}
+            return {"ok": False, "error": "余额不足，先充值"}
         _ds_ensure()
         from core import ds_chat
         ds_chat.rename_convo(u, d.get("id") or "", d.get("title") or "新对话")
@@ -504,7 +504,7 @@ def register(app):
     @app.get("/api/ds/msgs")
     def _ds_msgs(u: str = "", id: str = ""):
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放", "items": []}
+            return {"ok": False, "error": "余额不足，先充值", "items": []}
         _ds_ensure()
         from core import ds_chat
         return {"ok": True, "items": ds_chat.get_msgs(id)}
@@ -533,7 +533,7 @@ def register(app):
             )
 
         if not _ds_allowed(u):
-            return JSONResponse({"ok": False, "error": "只对管理员开放"}, status_code=403)
+            return JSONResponse({"ok": False, "error": "余额不足，先充值"}, status_code=403)
         if not _ds_rate_ok(u):
             return JSONResponse({"ok": False, "error": "太快了，等一分钟"}, status_code=429)
         if not text:
@@ -658,7 +658,7 @@ def register(app):
     @app.get("/api/ds/balance")
     def _ds_balance(u: str = ""):
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放", "balance": 0}
+            return {"ok": False, "error": "余额不足，先充值", "balance": 0}
         _ds_ensure()
         from core import ds_chat, ds_tools
         return {"ok": True, "balance": round(ds_chat.balance_of(u), 4),
@@ -677,7 +677,7 @@ def register(app):
         name = (d.get("name") or "file.txt").strip()
         data = d.get("data") or ""
         if not _ds_allowed(u):
-            return {"ok": False, "error": "只对管理员开放"}
+            return {"ok": False, "error": "余额不足，先充值"}
         _ds_ensure()
         from core import ds_chat, ds_tools
         if not cid:

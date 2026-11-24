@@ -36,7 +36,7 @@
   select,button{font-family:inherit}
   #model{background:#1b2026;color:#dfe3e8;border:1px solid var(--line);border-radius:8px;
     padding:6px 8px;font-size:12.5px;outline:none}
-  #stream{overflow:auto;flex:1;padding:26px 0 120px}
+  #stream{overflow:auto;flex:1;padding:26px 0 200px}
   .wrap{max-width:780px;margin:0 auto;padding:0 20px}
   .row{display:flex;gap:12px;margin-bottom:22px}
   .row.user{justify-content:flex-end}
@@ -64,7 +64,7 @@
     animation:blink 1s steps(2) infinite;vertical-align:-2px}
   @keyframes blink{50%{opacity:0}}
 
-  #composer{position:fixed;left:260px;right:0;bottom:0;padding:14px 0 22px;
+  #composer{position:fixed;left:260px;right:0;bottom:0;padding:14px 0 18px;
     background:linear-gradient(180deg,rgba(13,15,18,0),var(--bg) 40%)}
   #cwrap{max-width:780px;margin:0 auto;padding:0 20px}
   #box{background:#151a20;border:1px solid var(--line);border-radius:16px;padding:12px 12px 8px}
@@ -110,7 +110,7 @@
     <div class="brand"><i></i>DeepSeek</div>
     <div id="newBtn">＋ 新对话</div>
     <div id="list"></div>
-    <div class="side-foot">只对管理员开放 · 不额外审核</div>
+    <div class="side-foot">对话只保存在你自己的账户下</div>
   </aside>
 
   <main id="main">
@@ -166,7 +166,7 @@
       </div>
     </div>
     <div id="files" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
-    <div id="hint">内容由 AI 生成，请自行判断。对话存在你自己的服务器上。</div>
+    <div id="hint">内容由 AI 生成，请自行判断</div>
   </div>
 </div>
 
@@ -380,7 +380,7 @@ async function send(){
             balance = j.balance;
             $("bal").innerHTML = '余额 <b>¥' + Number(j.balance).toFixed(2) + '</b>';
           }
-          if (j.cost) $("hint").textContent = "本次 ¥" + Number(j.cost).toFixed(4) + " · 约 " + j.tokens + " tokens · 价格是 API 的三倍";
+          if (j.cost) $("hint").textContent = "本次 ¥" + Number(j.cost).toFixed(4) + " · 约 " + j.tokens + " tokens";
         }
       }
     }

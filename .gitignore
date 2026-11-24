@@ -64,3 +64,22 @@ _run.log
 static/uploads/
 _废弃补丁/
 _backup/
+
+# 备份与临时脚本，不进公开仓库
+*.bak*
+_*.py
+admin.py
+ipblock.json
+审核背景.py
+存档*
+本地测试*
+检查器_*
+clean_dummy.py
+find_user.py
+fix_db.py
+reset_chat.py
+show_memory.py
+who.py
+stats.py
+test_api.py
+v2.py

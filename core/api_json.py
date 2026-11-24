@@ -505,7 +505,12 @@ def register(app):
         cid = (d.get("id") or "").strip()
         text = (d.get("text") or "").strip()
         model = (d.get("model") or "deepseek-chat").strip()
-        thinking = bool(d.get("thinking"))
+        ALIAS = {"flash": "deepseek-flash", "pro": "deepseek-chat", "r1": "deepseek-reasoner",
+                 "deepseek-flash": "deepseek-flash", "deepseek-chat": "deepseek-chat",
+                 "deepseek-reasoner": "deepseek-reasoner"}
+        model = ALIAS.get(model, "deepseek-chat")
+        level = (d.get("level") or "off").strip()       # off / low / mid / high
+        thinking = bool(d.get("thinking")) or level != "off"
         system = (d.get("system") or "").strip()
 
         if not _ds_allowed(u):
@@ -544,8 +549,40 @@ def register(app):
         except Exception:
             pass
 
+        # 图片：最近几张塞进最后一条 user 消息
+        imgs = []
+        try:
+            imgs = ds_chat.image_files(cid)
+        except Exception:
+            pass
+
         merged_system = "\n\n".join(x for x in (system, file_block, sys_extra) if x)
-        msgs = ds_chat.build_context(cid, merged_system, budget=budget)
+        auto_budget = budget
+        if not auto_budget:
+            # 自动：按当前会话量取档
+            total = sum(len(str(m.get("content") or "")) for m in ds_chat.get_msgs(cid))
+            auto_budget = 8000 if total < 12000 else 24000 if total < 40000 else 48000 if total < 90000 else 96000
+        msgs = ds_chat.build_context(cid, merged_system, budget=auto_budget)
+
+        if imgs:
+            import base64 as _b64img
+            import mimetypes as _mt
+            # 只有 flash 认图
+            model = "deepseek-flash"
+            blocks = []
+            for _n, _p in imgs:
+                try:
+                    with open(_p, "rb") as _f:
+                        _b = _b64img.b64encode(_f.read()).decode()
+                    _mime = _mt.guess_type(_p)[0] or "image/jpeg"
+                    blocks.append({"type": "image_url",
+                                   "image_url": {"url": "data:%s;base64,%s" % (_mime, _b)}})
+                except Exception:
+                    pass
+            if blocks and msgs and msgs[-1].get("role") == "user":
+                _txt = msgs[-1].get("content") or "看看这张图"
+                msgs[-1] = {"role": "user",
+                            "content": [{"type": "text", "text": _txt}] + blocks}
         prompt_chars = sum(len(str(m.get("content") or "")) for m in msgs)
 
         def gen():
@@ -553,8 +590,16 @@ def register(app):
             try:
                 yield "data: " + json.dumps({"cid": cid}, ensure_ascii=False) + "\n\n"
                 extra = {"thinking": {"type": "enabled" if thinking else "disabled"}}
+                if level == "low":
+                    max_out = 2000
+                elif level == "mid":
+                    max_out = 6000
+                elif level == "high":
+                    max_out = 12000
+                else:
+                    max_out = 8000
                 for delta, _u2 in _cli.stream_chat(
-                        msgs, temperature=0.7, max_tokens=8000, model=model,
+                        msgs, temperature=0.7, max_tokens=max_out, model=model,
                         extra_body=extra):
                     if delta:
                         parts.append(delta)
@@ -620,11 +665,16 @@ def register(app):
                 f.write(raw)
         except Exception as e:
             return {"ok": False, "error": "文件写入失败：%s" % e}
+        ext2 = ext.lower()
+        if ext2 in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
+            fid = ds_chat.add_file(cid, name, "", kind="image", path=path)
+            return {"ok": True, "id": cid, "fid": fid, "name": name, "kind": "image",
+                    "chars": 0, "preview": "（图片，会随下一条消息一起发给她看）"}
         text = ds_tools.read_file(path)
         if not text:
-            return {"ok": False, "error": "这个格式读不出文字（支持 txt/md/py/json/csv/docx/pdf）"}
+            return {"ok": False, "error": "这个格式读不出文字（支持 txt/md/py/json/csv/docx/pdf/图片）"}
         fid = ds_chat.add_file(cid, name, text)
-        return {"ok": True, "id": cid, "fid": fid, "name": name,
+        return {"ok": True, "id": cid, "fid": fid, "name": name, "kind": "text",
                 "chars": len(text), "preview": text[:160]}
 
     @app.get("/api/ds/fs")

@@ -164,6 +164,7 @@ def spend(user_id: str, amount: float) -> float:
 # ---------- 上下文档位 ----------
 
 TIERS = {
+    "auto": {"chars": 0, "label": "自动"},
     "short": {"chars": 8000, "label": "短 · 8k 字"},
     "mid": {"chars": 24000, "label": "中 · 24k 字"},
     "long": {"chars": 48000, "label": "长 · 48k 字"},
@@ -172,17 +173,21 @@ TIERS = {
 
 
 def tier_chars(tier: str) -> int:
+    if tier == "auto":
+        return 0
     return TIERS.get(tier or "mid", TIERS["mid"])["chars"]
 
 
 # ---------- 文件 ----------
 
-def add_file(convo_id: str, name: str, text: str) -> int:
+def add_file(convo_id: str, name: str, text: str, kind: str = "text", path: str = "") -> int:
     c = _conn()
     c.execute("CREATE TABLE IF NOT EXISTS ds_files("
               "id INTEGER PRIMARY KEY AUTOINCREMENT, convo_id TEXT, name TEXT, "
-              "content TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
-    c.execute("INSERT INTO ds_files(convo_id,name,content) VALUES(?,?,?)", (convo_id, name, text))
+              "content TEXT, kind TEXT DEFAULT 'text', path TEXT DEFAULT '', "
+              "created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+    c.execute("INSERT INTO ds_files(convo_id,name,content,kind,path) VALUES(?,?,?,?,?)",
+              (convo_id, name, text, kind, path))
     fid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     c.commit()
     c.close()
@@ -196,6 +201,18 @@ def list_files(convo_id: str):
                          (convo_id,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def image_files(convo_id: str, limit: int = 4):
+    """最近几张图：[(name, path)]。"""
+    try:
+        c = _conn()
+        rows = c.execute("SELECT name, path FROM ds_files WHERE convo_id=? AND kind='image' "
+                         "ORDER BY id DESC LIMIT ?", (convo_id, limit)).fetchall()
+        c.close()
+        return [(r["name"], r["path"]) for r in rows]
     except Exception:
         return []
 

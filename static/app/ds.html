@@ -84,6 +84,10 @@
   #bal{font-size:12.5px;color:#9aa3ad;border:1px solid var(--line);border-radius:8px;
     padding:5px 10px;white-space:nowrap}
   #bal b{color:#e8eaed;font-weight:600}
+  select.mini{background:#1b2026;color:#cfd6df;border:1px solid var(--line);border-radius:18px;
+    padding:5px 8px;font-size:12.5px;outline:none;cursor:pointer}
+  select.mini:hover{border-color:#3a4657}
+  .fchip img{width:16px;height:16px;border-radius:4px;vertical-align:-3px;margin-right:4px}
   .fchip{font-size:12px;color:#c3c9d1;background:#1b2026;border:1px solid var(--line);
     border-radius:8px;padding:4px 9px}
   @media (max-width:820px){
@@ -105,16 +109,6 @@
   <main id="main">
     <div id="top">
       <div id="title">新对话</div>
-      <select id="tier">
-        <option value="short">短 · 8k 字</option>
-        <option value="mid" selected>中 · 24k 字</option>
-        <option value="long">长 · 48k 字</option>
-        <option value="max">超长 · 96k 字</option>
-      </select>
-      <select id="model">
-        <option value="deepseek-chat">DeepSeek-V3（快）</option>
-        <option value="deepseek-reasoner">DeepSeek-R1（思考）</option>
-      </select>
       <div id="bal">余额 —</div>
     </div>
 
@@ -138,9 +132,26 @@
     <div id="box">
       <textarea id="input" rows="1" placeholder="给 DeepSeek 发送消息（Enter 发送 / Shift+Enter 换行）"></textarea>
       <div id="tools">
-        <label class="tg" id="thinkTg"><input type="checkbox" id="think">深度思考</label>
-        <label class="tg" id="searchTg"><input type="checkbox" id="search">联网搜索</label>
-        <label class="tg" id="fileTg">＋ 文件<input type="file" id="file" hidden></label>
+        <select id="model" class="mini">
+          <option value="flash">Flash · 快</option>
+          <option value="pro" selected>Pro · 强</option>
+          <option value="r1">R1 · 推理</option>
+        </select>
+        <select id="level" class="mini">
+          <option value="off" selected>推理 关</option>
+          <option value="low">推理 低</option>
+          <option value="mid">推理 中</option>
+          <option value="high">推理 高</option>
+        </select>
+        <select id="tier" class="mini">
+          <option value="auto" selected>上下文 自动</option>
+          <option value="short">上下文 8k</option>
+          <option value="mid">上下文 24k</option>
+          <option value="long">上下文 48k</option>
+          <option value="max">上下文 96k</option>
+        </select>
+        <label class="tg" id="searchTg"><input type="checkbox" id="search">联网</label>
+        <label class="tg" id="fileTg">＋ 文件<input type="file" id="file" hidden accept="image/*,.txt,.md,.py,.json,.csv,.docx,.pdf"></label>
         <button id="send">↑</button>
       </div>
     </div>
@@ -221,7 +232,8 @@ async function loadFiles(){
   (d.items || []).forEach(f => {
     const s = document.createElement("span");
     s.className = "fchip";
-    s.textContent = f.name + "（" + Math.round(f.n / 1000) + "k字）";
+    s.textContent = (f.kind === "image" ? "🖼 " : "") + f.name +
+                    (f.kind === "image" ? "" : "（" + Math.round(f.n / 1000) + "k字）");
     $("files").appendChild(s);
   });
 }
@@ -282,7 +294,7 @@ async function send(){
   const body = {
     u: uid, id: curId || "", text,
     model: $("model").value,
-    thinking: $("think").checked,
+    level: $("level").value,
     tier: $("tier").value,
     search: $("search").checked,
   };
@@ -374,11 +386,11 @@ $("file").onchange = async (e) => {
   loadFiles();
   e.target.value = "";
 };
-$("thinkTg").onclick = (e) => {
-  const cb = $("think");
-  if (e.target.tagName !== "INPUT") cb.checked = !cb.checked;
-  $("thinkTg").classList.toggle("on", cb.checked);
-  if (cb.checked) $("model").value = "deepseek-reasoner";
+$("level").onchange = () => {
+  if ($("level").value !== "off") $("model").value = "r1";
+};
+$("model").onchange = () => {
+  if ($("model").value === "r1" && $("level").value === "off") $("level").value = "mid";
 };
 $("model").onchange = () => {
   if ($("model").value === "deepseek-reasoner"){
